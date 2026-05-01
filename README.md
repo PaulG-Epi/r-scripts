@@ -3,7 +3,7 @@ Shared R scripts and workflows for reproducible analysis in exposure-associated 
 
 ### [Emergency Fire Smoke Exposure and Epigenome-Wide DNA Methylation Changes in Firefighters]
 
-(https://github.com/Quanjiang801/Emergency-Fire-Smoke-Exposure-and-Epigenome-Wide-DNA-Methylation-Changes-in-Firefighters)
+([https://github.com/Quanjiang801/Emergency-Fire-Smoke-Exposure-and-Epigenome-Wide-DNA-Methylation-Changes-in-Firefighters](https://github.com/Quanjiang801/DNA_Methylation_of_Firefighter))
 
 
 ### [Potential Impact of Neurotoxicant Exposure  During Fire Suppression on Firefighter Mental Health](https://github.com/JingyuClaire/Firefighter-Neurotoxicant-Study)
