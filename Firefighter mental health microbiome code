@@ -1,0 +1,4003 @@
+
+
+#       MICRBIOME PROJECT
+
+#############################
+#have to run this code for multtest
+
+if (!require("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("multtest")
+
+install.packages("BiocManager")  # Run only once
+BiocManager::install("phyloseq")
+
+#########################################
+library(multtest)
+library(phyloseq)
+
+install.packages("openxlsx")
+install.packages("writexl")
+install.packages("plyr")
+install.packages("aod")
+install.packages("ggplot2")
+install.packages("readxl")
+install.packages("gtsummary")
+install.packages("tidyr")
+install.packages("lme4")
+install.packages("lmerTest")
+install.packages("gt")
+install.packages("patchwork")
+install.packages("flextable")
+install.packages("officer")
+install.packages("vegan")
+install.packages("viridis")
+
+
+library(openxlsx)
+library(writexl)
+library(plyr)
+library(aod)
+library(ggplot2)
+library(dplyr)
+library(readxl)
+library(gtsummary)
+library(tidyr)
+library(lme4)
+library(lmerTest)
+library(gt)
+library(forcats)
+library(patchwork)
+library(flextable)
+library(officer)
+library(vegan)
+library(viridis)
+
+
+
+
+worksheet <- Metadata_microbiome_for_online_tool
+
+
+#Removing replicates
+worksheet <- worksheet[worksheet$Replicate !="Y", ]
+
+
+#########
+#         CLEANING and DESCRIPTIVE stats
+
+worksheet$AGE <- as.numeric(worksheet$AGE)
+worksheet$weight <- as.numeric(worksheet$weight)
+worksheet$height <- as.numeric(worksheet$height)
+worksheet$BMI <- as.numeric(worksheet$BMI)
+worksheet$CESD <- as.numeric(worksheet$CESD)
+worksheet$FAST <- as.numeric(worksheet$FAST)
+worksheet$ASI <- as.numeric(worksheet$ASI)
+worksheet$PCL <- as.numeric(worksheet$PCL)
+worksheet$Serve_years <- as.numeric(worksheet$Serve_years)
+worksheet$fire_activity_hour <- as.numeric(worksheet$fire_activity_hour)
+worksheet$fire_scene_hour <- as.numeric(worksheet$fire_scene_hour)
+
+
+
+worksheet <- worksheet %>%
+  mutate(ASI_bi = case_when(
+    ASI < 17 ~ "No Anxiety",
+    ASI >= 17 ~ "Anxiety"
+  ))
+worksheet$ASI_bi <- as.factor(worksheet$ASI_bi)
+worksheet$ASI_bi <- factor(worksheet$ASI_bi, levels = c("No Anxiety", "Anxiety"))
+
+
+#levels(worksheet$ASI_bi)
+
+
+worksheet <- worksheet %>%
+  mutate(CESD_bi = recode(CESD_bi, "0" = "Not Depressed", "1" = "Depressed"))
+worksheet$CESD_bi <- as.factor(worksheet$CESD_bi)
+worksheet <- worksheet[worksheet$CESD_bi != "NA", ]
+worksheet$CESD_bi <- droplevels(worksheet$CESD_bi)
+worksheet$CESD_bi <- factor(worksheet$CESD_bi, levels = c("Not Depressed", "Depressed"))
+
+#levels(worksheet$CESD_bi)
+
+
+worksheet <- worksheet %>%
+  mutate(PCL_bi = recode(PCL_bi, "0" = "No PTSD", "1" = "PTSD"))
+worksheet$PCL_bi <- as.factor(worksheet$PCL_bi)
+worksheet <- worksheet[worksheet$PCL_bi != "NA", ]
+worksheet$PCL_bi <- droplevels(worksheet$PCL_bi)
+worksheet$PCL_bi <- factor(worksheet$PCL_bi, levels = c("No PTSD", "PTSD"))
+
+
+#levels(worksheet$PCL_bi)
+
+
+
+
+
+
+
+meta_df <- worksheet
+meta_df <- meta_df[meta_df$Exposure == "Pre", ]
+
+##################################################################################
+
+#             creating Table 1
+#     separate into just the "pre" or "baseline" group for descriptive stats
+
+
+
+baseline <- worksheet[worksheet$Exposure == "Pre", ]
+
+print(Table2)
+# === Table 1: Demographics ===
+Table1 <- baseline %>%
+  select(AGE, Sex, Race, BMI, BMI_cat, Rank, Serve_years) %>%
+  tbl_summary(
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})", 
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    missing = "no",
+    label = list(
+      AGE ~ "Age (years)",
+      Sex ~ "Sex",
+      Race ~ "Race",
+      BMI ~ "BMI",
+      BMI_cat ~ "BMI Classification",
+      Rank ~ "Rank",
+      Serve_years ~ "Years of Service"
+    )
+  ) %>%
+  as_flex_table()
+
+# === Table 2: Psychiatric Outcomes ===
+Table2 <- baseline %>%
+  select(CESD, CESD_bi, FAST, ASI, ASI_bi, PCL, PCL_bi) %>%
+  tbl_summary(
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})", 
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    missing = "no",
+    label = list(
+      CESD ~ "Depression Score",
+      CESD_bi ~ "Depression (Binary)",
+      FAST ~ "Stress Score",
+      ASI ~ "Anxiety Index Score",
+      ASI_bi ~ "Anxiety (Binary)",
+      PCL ~ "PTSD Score",
+      PCL_bi ~ "PTSD (Binary)"
+    )
+  ) %>%
+  as_flex_table()
+
+# === Create and save Word document with both tables ===
+doc <- read_docx()
+
+doc <- doc %>%
+  body_add_par("Table 1: Demographic Characteristics", style = "heading 1") %>%
+  body_add_flextable(Table1) %>%
+  body_add_par("", style = "Normal") %>%
+  body_add_par("Table 2: Psychiatric Characteristics", style = "heading 1") %>%
+  body_add_flextable(Table2)
+
+print(doc, target = "Baseline_Tables.docx")
+
+##################################################################################
+
+# Combining the two tables into 1
+
+library(gtsummary)
+library(flextable)
+library(officer)
+library(dplyr)
+
+# Subset to only "Pre" samples
+baseline <- worksheet[worksheet$Exposure == "Pre", ]
+
+# === Table 1: Demographics ===
+Table1 <- baseline %>%
+  select(AGE, Sex, Race, BMI, BMI_cat, Rank, Serve_years) %>%
+  tbl_summary(
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})", 
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    missing = "no",
+    label = list(
+      AGE ~ "Age (years)",
+      Sex ~ "Sex",
+      Race ~ "Race",
+      BMI ~ "BMI",
+      BMI_cat ~ "BMI Classification",
+      Rank ~ "Rank",
+      Serve_years ~ "Years of Service"
+    )
+  ) %>%
+  modify_header(label = "**Variable**") %>%
+  modify_spanning_header(everything() ~ "**Demographic Characteristics**")
+
+# === Table 2: Psychiatric Outcomes ===
+Table2 <- baseline %>%
+  select(CESD, CESD_bi, FAST, ASI, ASI_bi, PCL, PCL_bi) %>%
+  tbl_summary(
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})", 
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    missing = "no",
+    label = list(
+      CESD ~ "Depression Score",
+      CESD_bi ~ "Depression (Binary)",
+      FAST ~ "Stress Score",
+      ASI ~ "Anxiety Index Score",
+      ASI_bi ~ "Anxiety (Binary)",
+      PCL ~ "PTSD Score",
+      PCL_bi ~ "PTSD (Binary)"
+    )
+  ) %>%
+  modify_header(label = "**Variable**") %>%
+  modify_spanning_header(everything() ~ "**Psychiatric Characteristics**")
+
+# === Stack tables ===
+CombinedTable <- tbl_stack(list(Table1, Table2))
+
+# Convert to flextable and adjust style
+CombinedFlex <- as_flex_table(CombinedTable) %>%
+  fontsize(size = 9, part = "all") %>%  # Make font smaller
+  set_table_properties(layout = "autofit") %>%
+  align(align = "left", part = "all")
+
+# === Export to Word ===
+doc <- read_docx()
+doc <- doc %>%
+  body_add_par("Table: Combined Baseline Characteristics", style = "heading 1") %>%
+  body_add_flextable(CombinedFlex)
+
+print(doc, target = "Combined_Baseline_Tables_Stacked.docx")
+
+
+#########################################################################################
+
+#   Alpha Diversity
+
+# === Step 0: Define labels, color palettes, and desired group orders ===
+outcomes <- c("CESD_bi", "PCL_bi", "ASI_bi")
+labels <- c(CESD_bi = "Depression Status", PCL_bi = "PTSD Status", ASI_bi = "Anxiety Status")
+
+# Consistent Teal/Brown palette
+color_palettes <- list(
+  CESD_bi = c("Depressed" = "#FDBE85", "Not Depressed" = "#A6D8D4"),
+  PCL_bi  = c("PTSD" = "#FDBE85", "No PTSD" = "#A6D8D4"),
+  ASI_bi  = c("Anxiety" = "#FDBE85", "No Anxiety" = "#A6D8D4")
+)
+
+group_levels <- list(
+  CESD_bi = c("Depressed", "Not Depressed"),
+  PCL_bi  = c("PTSD", "No PTSD"),
+  ASI_bi  = c("Anxiety", "No Anxiety")
+)
+
+# === Step 1: Load and subset metadata ===
+meta_df <- worksheet
+meta_df <- as.data.frame(meta_df)
+rownames(meta_df) <- meta_df$SampleID
+meta_df$SampleID <- NULL
+meta_df <- meta_df[meta_df$Exposure == "Pre", ]
+
+# === Step 2: Load and clean OTU table ===
+otu_raw <- Rarefied_OTU_Counts
+otu_df <- as.data.frame(otu_raw)
+rownames(otu_df) <- otu_df[[1]]
+otu_df <- otu_df[ , -c(1, 2)]
+
+otu_mat <- as.matrix(otu_df)
+mode(otu_mat) <- "numeric"
+otu_mat_clean <- otu_mat[ , !grepl("_\\d+$", colnames(otu_mat)) ]
+
+otu_mat_clean <- otu_mat_clean[ , colnames(otu_mat_clean) %in% rownames(meta_df) ]
+meta_df_clean <- meta_df[rownames(meta_df) %in% colnames(otu_mat_clean), ]
+otu_mat_clean <- otu_mat_clean[ , colnames(otu_mat_clean) %in% rownames(meta_df_clean) ]
+
+otu_table_phy <- otu_table(otu_mat_clean, taxa_are_rows = TRUE)
+sample_data_phy <- sample_data(meta_df_clean)
+physeq_clean <- phyloseq(otu_table_phy, sample_data_phy)
+
+# === Step 3: Filter samples with complete outcome data ===
+physeq_filtered <- subset_samples(
+  physeq_clean,
+  !is.na(CESD_bi) & !is.na(PCL_bi) & !is.na(ASI_bi)
+)
+
+# === Step 4: Define plotting function ===
+plot_observed_OTU <- function(physeq_obj, outcome_vars, outcome_labels, color_palettes, group_levels) {
+  alpha_div <- estimate_richness(physeq_obj, measures = "Observed")
+  meta <- as(sample_data(physeq_obj), "data.frame")
+  alpha_div <- cbind(alpha_div, meta[rownames(alpha_div), outcome_vars, drop = FALSE])
+  
+  plot_list <- list()
+  for (outcome in outcome_vars) {
+    plot_data <- alpha_div[, c("Observed", outcome)]
+    colnames(plot_data) <- c("Value", "Group")
+    plot_data <- plot_data[!is.na(plot_data$Group), ]
+    
+    # Convert Group to factor with consistent order
+    plot_data$Group <- factor(plot_data$Group, levels = group_levels[[outcome]])
+    
+    # Wilcoxon test
+    test <- wilcox.test(Value ~ Group, data = plot_data, exact = FALSE)
+    raw_p <- signif(test$p.value, 3)
+    
+    colors <- color_palettes[[outcome]]
+    
+    p <- ggplot(plot_data, aes(x = Group, y = Value, fill = Group)) +
+      geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+      geom_jitter(width = 0.2, size = 2, alpha = 0.6, color = "black") +
+      labs(x = NULL, y = "Observed OTUs") +
+      scale_fill_manual(values = colors) +
+      scale_y_continuous(
+        limits = c(0, NA),
+        breaks = pretty(c(0, max(plot_data$Value, na.rm = TRUE)))
+      ) +
+      annotate("text",
+               x = 0.7,
+               y = max(plot_data$Value, na.rm = TRUE) * 0.95,
+               hjust = 0,
+               label = paste0("p = ", raw_p),
+               size = 4) +
+      theme_minimal(base_size = 14) +
+      theme(
+        plot.title = element_blank(),  # REMOVE title
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none"
+      )
+    
+    plot_list[[outcome]] <- p
+  }
+  
+  return(plot_list)
+}
+
+# === Step 5: Run plotting function and save plots ===
+observed_plots <- plot_observed_OTU(
+  physeq_filtered,
+  outcome_vars = outcomes,
+  outcome_labels = labels,
+  color_palettes = color_palettes,
+  group_levels = group_levels
+)
+
+# Print plots
+print(observed_plots$CESD_bi)
+print(observed_plots$PCL_bi)
+print(observed_plots$ASI_bi)
+
+# Save plots
+for (name in names(observed_plots)) {
+  ggsave(
+    filename = paste0(name, "_Observed_OTUs.jpeg"),
+    plot = observed_plots[[name]],
+    width = 6,
+    height = 5,
+    dpi = 300
+  )
+}
+
+
+############
+
+
+#   Alpha diversity between "Pre" and "Post"
+
+# === Define plotting function first ===
+plot_observed_OTU <- function(physeq_obj, outcome_vars, outcome_labels, color_palettes) {
+  alpha_div <- estimate_richness(physeq_obj, measures = "Observed")
+  meta <- as(sample_data(physeq_obj), "data.frame")
+  
+  # Safety check: ensure outcome_vars exist
+  missing_cols <- setdiff(outcome_vars, colnames(meta))
+  if (length(missing_cols) > 0) {
+    stop("These outcome variables are missing from metadata: ", paste(missing_cols, collapse = ", "))
+  }
+  
+  # Merge outcome variables into alpha_div
+  alpha_div <- cbind(alpha_div, meta[rownames(alpha_div), outcome_vars, drop = FALSE])
+  
+  p_results <- data.frame(Outcome = character(), RawP = numeric(), stringsAsFactors = FALSE)
+  plot_list <- list()
+  
+  for (outcome in outcome_vars) {
+    test_data <- alpha_div[, c("Observed", outcome)]
+    test_data <- test_data[!is.na(test_data[[outcome]]), ]
+    
+    test <- wilcox.test(Observed ~ get(outcome), data = test_data, exact = FALSE)
+    p_results <- rbind(p_results, data.frame(Outcome = outcome, RawP = test$p.value))
+  }
+  
+  for (i in seq_len(nrow(p_results))) {
+    outcome <- p_results$Outcome[i]
+    raw_p <- signif(p_results$RawP[i], 3)
+    label_title <- paste("Observed OTUs by", outcome_labels[outcome])
+    
+    plot_data <- alpha_div[, c("Observed", outcome)]
+    colnames(plot_data) <- c("Value", "Group")
+    plot_data <- plot_data[!is.na(plot_data$Group), ]
+    
+    colors <- color_palettes[[outcome]]
+    
+    p <- ggplot(plot_data, aes(x = Group, y = Value, fill = Group)) +
+      geom_boxplot(outlier.shape = NA, alpha = 0.7) +
+      geom_jitter(width = 0.2, size = 2, alpha = 0.6, color = "black") +
+      labs(
+        x = NULL,
+        y = "Observed OTUs"
+      ) +
+      scale_fill_manual(values = colors) +
+      scale_y_continuous(
+        limits = c(0, NA),
+        breaks = pretty(c(0, max(plot_data$Value, na.rm = TRUE)))
+      ) +
+      annotate("text",
+               x = 0.7,
+               y = max(plot_data$Value, na.rm = TRUE) * 0.95,
+               hjust = 0,
+               label = paste0("p = ", raw_p),
+               size = 4) +
+      theme_minimal(base_size = 14) +
+      theme(
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none"
+      )
+    
+    plot_list[[outcome]] <- p
+  }
+  
+  return(plot_list)
+}
+
+# === Load full metadata ===
+meta_df_full <- worksheet
+meta_df_full <- as.data.frame(meta_df_full)
+rownames(meta_df_full) <- meta_df_full$SampleID
+meta_df_full$SampleID <- NULL
+
+# === Load and clean full OTU table ===
+otu_raw_full <- Rarefied_OTU_Counts
+otu_df_full <- as.data.frame(otu_raw_full)
+rownames(otu_df_full) <- otu_df_full[[1]]
+otu_df_full <- otu_df_full[ , -c(1, 2)]  # Remove OTU ID and taxonomy
+
+otu_mat_full <- as.matrix(otu_df_full)
+mode(otu_mat_full) <- "numeric"
+otu_mat_full <- otu_mat_full[ , !grepl("_\\d+$", colnames(otu_mat_full)) ]  # Remove replicates
+
+# === Align OTU and metadata ===
+otu_mat_full <- otu_mat_full[ , colnames(otu_mat_full) %in% rownames(meta_df_full) ]
+meta_df_full <- meta_df_full[rownames(meta_df_full) %in% colnames(otu_mat_full), ]
+otu_mat_full <- otu_mat_full[ , colnames(otu_mat_full) %in% rownames(meta_df_full) ]
+
+# === Create phyloseq object ===
+otu_table_phy_full <- otu_table(otu_mat_full, taxa_are_rows = TRUE)
+sample_data_phy_full <- sample_data(meta_df_full)
+physeq_full <- phyloseq(otu_table_phy_full, sample_data_phy_full)
+
+# === Plot Observed OTUs by Exposure (Pre vs Post) ===
+exposure_plots <- plot_observed_OTU(
+  physeq_obj = physeq_full,
+  outcome_vars = "Exposure",
+  outcome_labels = c(Exposure = "Exposure Status"),
+  color_palettes = list(Exposure = c("Pre" = "#A6D8D4", "Post" = "#FDBE85"))
+)
+
+print(exposure_plots$Exposure)
+
+ggsave("Observed_OTUs_Pre_vs_Post.jpeg", exposure_plots$Exposure, width = 6, height = 5, dpi = 300)
+
+
+
+
+
+#########################################################################################
+#########################################################################################
+#########################################################################################
+
+
+
+#     Beta Diversity
+
+
+# Subset to Pre-only samples
+physeq_pre <- subset_samples(physeq_full, Exposure == "Pre")
+
+# ==== Step 1: Compute Bray-Curtis distance ====
+bray_dist <- distance(physeq_pre, method = "bray")
+
+# ==== Step 2: Run PERMANOVA for each outcome ====
+sample_df <- as(sample_data(physeq_pre), "data.frame")
+
+adonis_CESD <- adonis2(bray_dist ~ CESD_bi, data = sample_df, permutations = 999)
+adonis_PCL  <- adonis2(bray_dist ~ PCL_bi,  data = sample_df, permutations = 999)
+adonis_ASI  <- adonis2(bray_dist ~ ASI_bi,  data = sample_df, permutations = 999)
+
+print(adonis_CESD)
+print(adonis_PCL)
+print(adonis_ASI)
+
+# ==== Step 3: PCoA Ordination ====
+ordination <- ordinate(physeq_pre, method = "PCoA", distance = bray_dist)
+
+# ==== Step 4: Define Plotting Function with Fixed Colors ====
+plot_pcoa <- function(physeq_obj, ord_obj, group_var, title_label, adonis_result) {
+  percent_var <- round(ord_obj$values$Relative_eig[1:2] * 100, 1)
+  r2 <- round(adonis_result$R2[1], 3)
+  pval <- signif(adonis_result$`Pr(>F)`[1], 3)
+  
+  # Extract plotting data
+  df <- as(sample_data(physeq_obj), "data.frame")
+  
+  # Reorder factor levels for consistency (e.g., "No" first)
+  if (group_var == "PCL_bi") {
+    df[[group_var]] <- factor(df[[group_var]], levels = c("No PTSD", "PTSD"))
+    sample_data(physeq_obj) <- sample_data(df)
+  }
+  
+  ggplot(plot_ordination(physeq_obj, ord_obj, color = group_var)$data,
+         aes(Axis.1, Axis.2, color = get(group_var))) +
+    geom_point(size = 3, alpha = 0.8) +
+    theme_minimal(base_size = 14) +
+    labs(
+      title = paste("PCoA - Bray-Curtis (", title_label, ")", sep = ""),
+      x = paste0("PCoA1 (", percent_var[1], "%)"),
+      y = paste0("PCoA2 (", percent_var[2], "%)"),
+      color = title_label
+    ) +
+    scale_color_manual(values = c("Not Depressed" = "#A6D8D4", "Depressed" = "#FDBE85",
+                                  "No PTSD" = "#A6D8D4", "PTSD" = "#FDBE85",
+                                  "No Anxiety" = "#A6D8D4", "Anxiety" = "#FDBE85")) +
+    annotate("text",
+             x = -Inf, y = Inf,
+             hjust = -0.1, vjust = 1.1,
+             label = paste0("PERMANOVA: R² = ", r2, ", p = ", pval),
+             size = 4)
+}
+
+# ==== Step 5: Plot for Each Outcome ====
+p_cesd <- plot_pcoa(physeq_pre, ordination, "CESD_bi", "Depression Status", adonis_CESD)
+p_pcl  <- plot_pcoa(physeq_pre, ordination, "PCL_bi",  "PTSD Status",      adonis_PCL)
+p_asi  <- plot_pcoa(physeq_pre, ordination, "ASI_bi",  "Anxiety Status",   adonis_ASI)
+
+print(p_cesd)
+print(p_pcl)
+print(p_asi)
+
+# ==== Step 6: Save Plots ====
+ggsave("PCoA_CESD.jpeg", p_cesd, width = 6, height = 5, dpi = 300)
+ggsave("PCoA_PCL.jpeg",  p_pcl,  width = 6, height = 5, dpi = 300)
+ggsave("PCoA_ASI.jpeg",  p_asi,  width = 6, height = 5, dpi = 300)
+
+
+
+
+
+############
+
+
+#   Beta diversity between "Pre" and "Post"
+
+# ==== Step 1: Compute Bray-Curtis distance ====
+bray_dist_exposure <- distance(physeq_full, method = "bray")
+
+# ==== Step 2: Run PERMANOVA ====
+sample_df_full <- as(sample_data(physeq_full), "data.frame")
+
+adonis_exposure <- adonis2(bray_dist_exposure ~ Exposure, data = sample_df_full, permutations = 999)
+print(adonis_exposure)
+
+# ==== Step 3: Run PCoA ordination ====
+ordination_exposure <- ordinate(physeq_full, method = "PCoA", distance = bray_dist_exposure)
+
+# ==== Step 4: Plotting ====
+p_exposure <- plot_pcoa(
+  physeq_obj = physeq_full,
+  ord_obj = ordination_exposure,
+  group_var = "Exposure",
+  title_label = "Exposure Status",
+  adonis_result = adonis_exposure
+)
+
+# View the plot
+print(p_exposure)
+
+ggsave("PCoA_Pre_vs_Post.jpeg", p_exposure, width = 6, height = 5, dpi = 300)
+
+
+
+
+
+#########################################################################################
+#########################################################################################
+########################################################################################
+
+
+#       RELATIVE abundance
+
+      #####***** HAVE to merge all taxa data with metadata at each level (in later code) before running this section***###
+
+
+
+
+prepare_plot_df <- function(taxa_df, group_var, taxa_level = "Phylum") {
+  library(dplyr)
+  library(tidyr)
+  library(forcats)
+  library(ggplot2)
+  
+  # Step 1: Identify taxonomic columns (assumes they contain "Bacteria")
+  tax_cols <- grep("Bacteria", colnames(taxa_df), value = TRUE)
+  
+  # Step 2: Normalize to relative abundance
+  taxa_df[tax_cols] <- taxa_df[tax_cols] / rowSums(taxa_df[tax_cols], na.rm = TRUE)
+  
+  # Step 3: Pivot to long format
+  long_df <- taxa_df %>%
+    pivot_longer(
+      cols = all_of(tax_cols),
+      names_to = taxa_level,
+      values_to = "RelativeAbundance"
+    )
+  
+  # Step 4: Identify top 10 most abundant taxa
+  top_10 <- long_df %>%
+    group_by(.data[[taxa_level]]) %>%
+    summarise(mean_abundance = mean(RelativeAbundance, na.rm = TRUE)) %>%
+    arrange(desc(mean_abundance)) %>%
+    slice_head(n = 10) %>%
+    pull(.data[[taxa_level]])
+  
+  # Step 5: Filter and reorder for plotting
+  plot_df <- long_df %>%
+    filter(.data[[taxa_level]] %in% top_10) %>%
+    mutate(
+      SampleID = factor(SampleID),
+      !!taxa_level := fct_reorder(.data[[taxa_level]], RelativeAbundance, .fun = mean, .desc = TRUE)
+    )
+  
+  return(plot_df)
+}
+
+
+# Assign merged data
+phylum_raw <- Phylum_pre
+class_raw  <- Class_pre
+order_raw  <- Order_pre
+family_raw <- Family_pre
+genus_raw  <- Genus_pre
+
+
+############
+            #DEPRESSION STATUS
+
+#     PHYLUM
+plot_df <- prepare_plot_df(phylum_raw, group_var = "CESD_bi", taxa_level = "Phylum")
+
+
+p_phylum <- ggplot(plot_df, aes(x = SampleID, y = Phylum, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(
+    name = "Relative Abundance",
+    option = "plasma",
+    limits = c(0, 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+    labels = c("0", "0.25", "0.5", "0.75", "1.0")
+  ) +
+  facet_wrap(~ CESD_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(face = "bold", size = 14),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
+  ) +
+  labs(
+    title = "Phylum",
+    x = NULL,
+    y = NULL
+  ) +
+  scale_y_discrete(limits = rev(levels(plot_df$Phylum)))
+
+print(p_phylum)
+
+#   CLASS
+plot_df <- prepare_plot_df(class_raw, group_var = "CESD_bi", taxa_level = "Class")
+
+p_class <- ggplot(plot_df, aes(x = SampleID, y = Class, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(
+    name = "Relative Abundance",
+    option = "plasma",
+    limits = c(0, 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+    labels = c("0", "0.25", "0.5", "0.75", "1.0")
+  ) +
+  facet_wrap(~ CESD_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(face = "bold", size = 14),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
+  ) +
+  labs(title = "Class", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Class)))
+
+
+#   ORDER
+plot_df <- prepare_plot_df(order_raw, group_var = "CESD_bi", taxa_level = "Order")
+
+p_order <- ggplot(plot_df, aes(x = SampleID, y = Order, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(
+    name = "Relative Abundance",
+    option = "plasma",
+    limits = c(0, 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+    labels = c("0", "0.25", "0.5", "0.75", "1.0")
+  ) +
+  facet_wrap(~ CESD_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(face = "bold", size = 14),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
+  ) +
+  labs(title = "Order", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Order)))
+
+#   FAMILY
+plot_df <- prepare_plot_df(family_raw, group_var = "CESD_bi", taxa_level = "Family")
+
+p_family <- ggplot(plot_df, aes(x = SampleID, y = Family, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(
+    name = "Relative Abundance",
+    option = "plasma",
+    limits = c(0, 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+    labels = c("0", "0.25", "0.5", "0.75", "1.0")
+  ) +
+  facet_wrap(~ CESD_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(face = "bold", size = 14),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
+  ) +
+  labs(title = "Family", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Family)))
+
+#   GENUS
+plot_df <- prepare_plot_df(genus_raw, group_var = "CESD_bi", taxa_level = "Genus")
+
+p_genus <- ggplot(plot_df, aes(x = SampleID, y = Genus, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(
+    name = "Relative Abundance",
+    option = "plasma",
+    limits = c(0, 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+    labels = c("0", "0.25", "0.5", "0.75", "1.0")
+  ) +
+  facet_wrap(~ CESD_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(face = "bold", size = 14),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
+  ) +
+  labs(title = "Genus", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Genus)))
+
+
+combined_plot <- p_phylum / p_class / p_order / p_family / p_genus +
+  plot_layout(guides = "collect") & 
+  theme(legend.position = "bottom")
+
+
+ggsave("Combined_Depression_Heatmap.jpeg", combined_plot, width = 10, height = 20, dpi = 300)
+
+
+############
+#                 PTSD STATUS
+
+# Prepare and plot: Phylum
+plot_df <- prepare_plot_df(phylum_raw, group_var = "PCL_bi", taxa_level = "Phylum")
+p_phylum <- ggplot(plot_df, aes(x = SampleID, y = Phylum, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Relative Abundance", option = "plasma", limits = c(0, 1),
+                       breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+                       labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  facet_wrap(~ PCL_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        strip.text = element_text(face = "bold", size = 14),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16)) +
+  labs(title = "Phylum", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Phylum)))
+
+# Class
+plot_df <- prepare_plot_df(class_raw, group_var = "PCL_bi", taxa_level = "Class")
+p_class <- ggplot(plot_df, aes(x = SampleID, y = Class, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Relative Abundance", option = "plasma", limits = c(0, 1),
+                       breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+                       labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  facet_wrap(~ PCL_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        strip.text = element_text(face = "bold", size = 14),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16)) +
+  labs(title = "Class", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Class)))
+
+# Order
+plot_df <- prepare_plot_df(order_raw, group_var = "PCL_bi", taxa_level = "Order")
+p_order <- ggplot(plot_df, aes(x = SampleID, y = Order, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Relative Abundance", option = "plasma", limits = c(0, 1),
+                       breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+                       labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  facet_wrap(~ PCL_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        strip.text = element_text(face = "bold", size = 14),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16)) +
+  labs(title = "Order", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Order)))
+
+# Family
+plot_df <- prepare_plot_df(family_raw, group_var = "PCL_bi", taxa_level = "Family")
+p_family <- ggplot(plot_df, aes(x = SampleID, y = Family, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Relative Abundance", option = "plasma", limits = c(0, 1),
+                       breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+                       labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  facet_wrap(~ PCL_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        strip.text = element_text(face = "bold", size = 14),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16)) +
+  labs(title = "Family", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Family)))
+
+# Genus
+plot_df <- prepare_plot_df(genus_raw, group_var = "PCL_bi", taxa_level = "Genus")
+p_genus <- ggplot(plot_df, aes(x = SampleID, y = Genus, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Relative Abundance", option = "plasma", limits = c(0, 1),
+                       breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+                       labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  facet_wrap(~ PCL_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        panel.grid = element_blank(),
+        strip.text = element_text(face = "bold", size = 14),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16)) +
+  labs(title = "Genus", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Genus)))
+
+
+combined_ptsd <- p_phylum / p_class / p_order / p_family / p_genus +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+
+ggsave("Combined_PTSD_Heatmap.jpeg", combined_ptsd, width = 10, height = 20, dpi = 300)
+
+
+############
+#                 ANXIETY STATUS
+
+
+# Phylum
+plot_df <- prepare_plot_df(phylum_raw, group_var = "ASI_bi", taxa_level = "Phylum")
+p_phylum <- ggplot(plot_df, aes(x = SampleID, y = Phylum, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Relative Abundance", option = "plasma", limits = c(0, 1),
+                       breaks = c(0, 0.25, 0.5, 0.75, 1.0), labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  facet_wrap(~ ASI_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), panel.grid = element_blank(),
+        strip.text = element_text(face = "bold", size = 14),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16)) +
+  labs(title = "Phylum", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Phylum)))
+
+# Class
+plot_df <- prepare_plot_df(class_raw, group_var = "ASI_bi", taxa_level = "Class")
+p_class <- ggplot(plot_df, aes(x = SampleID, y = Class, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Relative Abundance", option = "plasma", limits = c(0, 1),
+                       breaks = c(0, 0.25, 0.5, 0.75, 1.0), labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  facet_wrap(~ ASI_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), panel.grid = element_blank(),
+        strip.text = element_text(face = "bold", size = 14),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16)) +
+  labs(title = "Class", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Class)))
+
+# Order
+plot_df <- prepare_plot_df(order_raw, group_var = "ASI_bi", taxa_level = "Order")
+p_order <- ggplot(plot_df, aes(x = SampleID, y = Order, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Relative Abundance", option = "plasma", limits = c(0, 1),
+                       breaks = c(0, 0.25, 0.5, 0.75, 1.0), labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  facet_wrap(~ ASI_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), panel.grid = element_blank(),
+        strip.text = element_text(face = "bold", size = 14),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16)) +
+  labs(title = "Order", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Order)))
+
+# Family
+plot_df <- prepare_plot_df(family_raw, group_var = "ASI_bi", taxa_level = "Family")
+p_family <- ggplot(plot_df, aes(x = SampleID, y = Family, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Relative Abundance", option = "plasma", limits = c(0, 1),
+                       breaks = c(0, 0.25, 0.5, 0.75, 1.0), labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  facet_wrap(~ ASI_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), panel.grid = element_blank(),
+        strip.text = element_text(face = "bold", size = 14),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16)) +
+  labs(title = "Family", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Family)))
+
+# Genus
+plot_df <- prepare_plot_df(genus_raw, group_var = "ASI_bi", taxa_level = "Genus")
+p_genus <- ggplot(plot_df, aes(x = SampleID, y = Genus, fill = RelativeAbundance)) +
+  geom_tile() +
+  scale_fill_viridis_c(name = "Relative Abundance", option = "plasma", limits = c(0, 1),
+                       breaks = c(0, 0.25, 0.5, 0.75, 1.0), labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  facet_wrap(~ ASI_bi, nrow = 1, scales = "free_x") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), panel.grid = element_blank(),
+        strip.text = element_text(face = "bold", size = 14),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16)) +
+  labs(title = "Genus", x = NULL, y = NULL) +
+  scale_y_discrete(limits = rev(levels(plot_df$Genus)))
+
+
+combined_anxiety <- p_phylum / p_class / p_order / p_family / p_genus +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+
+ggsave("Combined_Anxiety_Heatmap.jpeg", combined_anxiety, width = 10, height = 20, dpi = 300)
+
+
+
+
+
+
+##########################
+
+#     Pre vs. Post relative abundance
+
+
+plot_abundance_prepost <- function(df, taxa_level = "Phylum") {
+  library(dplyr)
+  library(tidyr)
+  library(forcats)
+  library(ggplot2)
+  
+  tax_cols <- grep("Bacteria", colnames(df), value = TRUE)
+  df[tax_cols] <- df[tax_cols] / rowSums(df[tax_cols], na.rm = TRUE)
+  
+  long_df <- df %>%
+    pivot_longer(
+      cols = all_of(tax_cols),
+      names_to = taxa_level,
+      values_to = "RelativeAbundance"
+    )
+  
+  top_10 <- long_df %>%
+    group_by(.data[[taxa_level]]) %>%
+    summarise(mean_abundance = mean(RelativeAbundance, na.rm = TRUE)) %>%
+    slice_max(mean_abundance, n = 10) %>%
+    pull(.data[[taxa_level]])
+  
+  plot_df <- long_df %>%
+    filter(.data[[taxa_level]] %in% top_10) %>%
+    mutate(
+      SampleID = factor(SampleID),
+      !!taxa_level := fct_reorder(.data[[taxa_level]], RelativeAbundance, .fun = mean, .desc = TRUE)
+    )
+  
+  ggplot(plot_df, aes(x = SampleID, y = .data[[taxa_level]], fill = RelativeAbundance)) +
+    geom_tile() +
+    scale_fill_viridis_c(
+      name = "Relative Abundance",
+      option = "plasma",
+      limits = c(0, 1),
+      breaks = c(0, 0.25, 0.5, 0.75, 1.0),
+      labels = c("0", "0.25", "0.5", "0.75", "1.0")
+    ) +
+    facet_wrap(~ Exposure, nrow = 1, scales = "free_x") +
+    theme_minimal(base_size = 14) +
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      panel.grid = element_blank(),
+      strip.text = element_text(face = "bold", size = 14),
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 16)
+    ) +
+    labs(title = paste(taxa_level, "(Pre vs Post)"), x = NULL, y = NULL) +
+    scale_y_discrete(limits = rev(levels(factor(plot_df[[taxa_level]]))))
+}
+
+p_phylum <- plot_abundance_prepost(Phylum_analysis, "Phylum")
+p_class  <- plot_abundance_prepost(Class_analysis, "Class")
+p_order  <- plot_abundance_prepost(Order_analysis, "Order")
+p_family <- plot_abundance_prepost(Family_analysis, "Family")
+p_genus  <- plot_abundance_prepost(Genus_analysis, "Genus")
+
+
+combined_prepost <- p_phylum / p_class / p_order / p_family / p_genus +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+
+ggsave("Combined_PrePost_Heatmap.jpeg", combined_prepost, width = 10, height = 20, dpi = 300)
+
+
+#########################################################################################
+#########################################################################################
+#########################################################################################
+
+
+#         Using PHYLUM data
+
+
+#   Merging Phylum data with demographic data
+
+#Transpose data in excel file "PHYLUM" before reading in excel sheet
+
+Phylum_analysis <- merge(worksheet, PHYLUM, by = "SampleID", all = FALSE)
+
+Phylum_analysis$ID <- as.factor(Phylum_analysis$ID)
+
+print(Phylum_analysis)
+
+
+#   Set up datset for loop analyses
+
+#colnames(Phylum_analysis)
+
+sapply(Phylum_analysis, class)
+cols.num <- c(
+ "Bacteria; Abditibacteriota" , "Bacteria; Acidobacteriota" ,  "Bacteria; Actinobacteriota" ,  
+ "Bacteria; Bacteroidota"     , "Bacteria; Bdellovibrionota",  "Bacteria; Campylobacterota" ,   
+ "Bacteria; Chloroflexi"      , "Bacteria; Cyanobacteria"   ,  "Bacteria; Deinococcota"     ,  
+ "Bacteria; Desulfobacterota" , "Bacteria; Firmicutes"      ,  "Bacteria; Fusobacteriota"   ,  
+ "Bacteria; Gemmatimonadota"  , "Bacteria; Myxococcota"     ,  "Bacteria; Nitrospirota"     ,  
+ "Bacteria; Patescibacteria"  , "Bacteria; Planctomycetota" ,  "Bacteria; Proteobacteria"   ,  
+ "Bacteria; Spirochaetota"    , "Bacteria; Synergistota"    ,  "Bacteria; Verrucomicrobiota"
+)
+Phylum_analysis[cols.num] <- sapply(Phylum_analysis[cols.num], as.numeric)
+sapply(Phylum_analysis, class)
+
+
+
+
+
+#         Subset data to only include baseline for subjects for general associations
+Phylum_pre <- Phylum_analysis[Phylum_analysis$Exposure == "Pre", ]
+
+
+##############################################################################################
+
+
+#### LOGISTIC regression analyses for CESD, PCL, and ASI against all phyla
+
+# List of outcome variables
+outcome_vars_binary <- c("CESD_bi", "PCL_bi", "ASI_bi")
+
+# List of bacterial phyla
+bacterial_phyla <- c(
+  "Bacteria; Abditibacteriota", "Bacteria; Acidobacteriota", "Bacteria; Actinobacteriota",
+  "Bacteria; Bacteroidota", "Bacteria; Bdellovibrionota", "Bacteria; Campylobacterota",
+  "Bacteria; Chloroflexi", "Bacteria; Cyanobacteria", "Bacteria; Deinococcota",
+  "Bacteria; Desulfobacterota", "Bacteria; Firmicutes", "Bacteria; Fusobacteriota",
+  "Bacteria; Gemmatimonadota", "Bacteria; Myxococcota", "Bacteria; Nitrospirota",
+  "Bacteria; Patescibacteria", "Bacteria; Planctomycetota", "Bacteria; Proteobacteria",
+  "Bacteria; Spirochaetota", "Bacteria; Synergistota", "Bacteria; Verrucomicrobiota"
+)
+
+# Create an empty workbook
+wb <- createWorkbook()
+
+# Loop through each outcome variable
+for (outcome_var in outcome_vars_binary) {
+  # Results for the current outcome variable
+  Results_Per_Outcome <- lapply(bacterial_phyla, function(var) {
+    # Prepare the column name with backticks
+    var <- paste0("`", var, "`")
+    
+    # Create the formula dynamically
+    formula <- as.formula(paste(outcome_var, "~", var))
+    
+    # Perform logistic regression
+    res.logist <- glm(formula, data = Phylum_pre, family = "binomial")
+    
+    # Extract model summary
+    model_summary <- coef(summary(res.logist))
+    type_column <- ifelse(rownames(model_summary) == "(Intercept)", "Intercept", "Phylum")
+    
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|z|)"]  # Adjust column name if needed
+    
+    # Adjust p-values
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return a data frame
+    data.frame(
+      Outcome = outcome_var,
+      Phylum = var,
+      Type = type_column,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  })
+  
+  # Combine results for all phyla for the current outcome variable
+  combined_results <- do.call(rbind, Results_Per_Outcome)
+  
+  # Add the results to a new sheet in the workbook
+  addWorksheet(wb, sheetName = outcome_var)
+  writeData(wb, sheet = outcome_var, combined_results)
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "Phylum_logistic.xlsx", overwrite = TRUE)
+
+
+######################################################################################
+
+
+### LINEAR regression using CESD, PCL, ASI, and FAST as outcome variables
+
+
+#Test runs for linear models
+Test_CESD_Phy_Linear <- lm(CESD ~ `Bacteria; Abditibacteriota`, data = Phylum_pre)
+summary(Test_CESD_Phy_Linear)
+
+#Use this for making a scatter plot of any significant bacteria phyla
+#        plot(Phylum_pre$CESD, Phylum_pre$`Bacteria; Abditibacteriota`, main = "Scatter Plot of CESD v Bacteria",
+#            xlab= "CESD", ylab="Bacteria",
+#              pch = 19, col = "blue")
+#     abline(Test_CESD_Phy_Linear, col = "red", lwd = 2)      This adds regression line to scatter plot
+
+
+#Check for residuals/QQ plot for need of transformation
+#par(mfrow = c(2, 2))
+#plot(Test_CESD_Phy_Linear)
+
+
+outcome_vars_linear <- c("CESD", "PCL", "ASI", "FAST")
+
+# Create an empty workbook
+wb <- createWorkbook()
+
+# Loop through each outcome variable
+for (outcome_var in outcome_vars_linear) {
+  # Results for the current outcome variable
+  Results_Per_Outcome <- lapply(bacterial_phyla, function(var) {
+    # Prepare the column name with backticks
+    var <- paste0("`", var, "`")
+    
+    # Create the formula dynamically
+    formula <- as.formula(paste(outcome_var, "~", var))
+    
+    # Perform logistic regression
+    res.lm <- lm(formula, data = Phylum_pre)
+    
+    # Extract model summary
+    model_summary <- coef(summary(res.lm))
+    type_column <- ifelse(rownames(model_summary) == "(Intercept)", "Intercept", "Phylum")
+    
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|t|)"]  # Adjust column name if needed
+    
+    # Adjust p-values
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return a data frame
+    data.frame(
+      Outcome = outcome_var,
+      Phylum = var,
+      Type = type_column,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  })
+  
+  # Combine results for all phyla for the current outcome variable
+  combined_results <- do.call(rbind, Results_Per_Outcome)
+  
+  # Add the results to a new sheet in the workbook
+  addWorksheet(wb, sheetName = outcome_var)
+  writeData(wb, sheet = outcome_var, combined_results)
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "All_linear_phyla.xlsx", overwrite = TRUE)
+
+
+
+
+
+
+
+
+##############################################
+
+############################################################################################
+
+#     Linear mixed model regression for changes between sessions
+
+
+# MAKEM SURE ID variable is factor!!!
+#Phylum_analysis$ID <- as.factor(Phylum_analysis$ID)
+
+
+repeated_test_phylum <- lmer(`Bacteria; Abditibacteriota`~ Exposure + (1 | ID), data = Phylum_analysis)
+summary(repeated_test_phylum)
+
+
+
+#bacteria ~ Time (Exposure variable (Subject is ID variable, ID is factor)))
+
+
+results_Phylum_LMM <- lapply(c(
+  "Bacteria; Abditibacteriota" , "Bacteria; Acidobacteriota" ,  "Bacteria; Actinobacteriota" ,  
+  "Bacteria; Bacteroidota"     , "Bacteria; Bdellovibrionota",  "Bacteria; Campylobacterota" ,   
+  "Bacteria; Chloroflexi"      , "Bacteria; Cyanobacteria"   ,  "Bacteria; Deinococcota"     ,  
+  "Bacteria; Desulfobacterota" , "Bacteria; Firmicutes"      ,  "Bacteria; Fusobacteriota"   ,  
+  "Bacteria; Gemmatimonadota"  , "Bacteria; Myxococcota"     ,  "Bacteria; Nitrospirota"     ,  
+  "Bacteria; Patescibacteria"  , "Bacteria; Planctomycetota" ,  "Bacteria; Proteobacteria"   ,  
+  "Bacteria; Spirochaetota"    , "Bacteria; Synergistota"    ,  "Bacteria; Verrucomicrobiota"
+),
+function(var) {
+  var <- paste0("`", var, "`")
+  formula <- as.formula(paste(var, "~ Exposure + (1 | ID)"))
+  res.mixed <- lmer(formula, data = Phylum_analysis)
+  
+ model_summary <- coef(summary(res.mixed))
+ estimates <- model_summary[, "Estimate"]
+ std_errors <- model_summary[, "Std. Error"]
+ p_values <- model_summary[, "Pr(>|t|)"]
+
+  p_adjusted_BH <- p.adjust(p_values, method = "BH")
+  p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+ 
+data.frame(
+  Phylum = var,
+  Estimate = estimates,
+  SE = std_errors,
+  Unadjusted_pvalue = p_values,
+  BH_pvalue = p_adjusted_BH,
+  Bonferroni_pvalue = p_adjusted_Bonf
+)
+  
+})
+
+results_combined <- do.call(rbind, results_Phylum_LMM)
+
+
+write.csv(results_combined, file = "Phylum_LMM_P_Adj.csv")
+
+
+##############################################################################################
+##############################################################################################
+##############################################################################################
+
+#                           USING CLASS dataset
+
+      ###*** CLEAR ENVIRONMENT FROM PHYLUM data/vectors before running CLASS analysis
+
+
+Class_analysis <- merge(worksheet, CLASS, by = "SampleID", all = FALSE)
+
+Class_analysis$ID <- as.factor(Class_analysis$ID)
+
+print(Class_analysis)
+
+#   Set up datset for loop analyses
+
+#colnames(Class_analysis)
+
+sapply(Class_analysis, class)
+cols.num <- c(
+"Bacteria; Abditibacteria"      , "Bacteria; Acidimicrobiia"    ,  "Bacteria; Actinobacteria"     ,
+"Bacteria; Alphaproteobacteria" , "Bacteria; Anaerolineae"      ,  "Bacteria; Bacilli"            ,
+"Bacteria; bacteriap25"         , "Bacteria; Bacteroidia"       ,  "Bacteria; Blastocatellia"     ,
+"Bacteria; Campylobacteria"     , "Bacteria; Clostridia"        ,  "Bacteria; Coriobacteriia"     ,
+"Bacteria; Cyanobacteriia"      , "Bacteria; Deinococci"        ,  "Bacteria; Desulfobulbia"      ,
+"Bacteria; Desulfuromonadia"    , "Bacteria; Fusobacteriia"     ,  "Bacteria; Gammaproteobacteria",
+"Bacteria; Gemmatimonadetes"    , "Bacteria; Gitt_GS_136"       ,  "Bacteria; Gracilibacteria"    ,
+"Bacteria; Holophagae"          , "Bacteria; KD4_96"            ,  "Bacteria; Leptospirae"        ,
+"Bacteria; MB_A2_108"           , "Bacteria; Myxococcia"        ,  "Bacteria; Negativicutes"      ,
+"Bacteria; Nitrospiria"         , "Bacteria; Oligoflexia"       ,  "Bacteria; Planctomycetes"     ,
+"Bacteria; Polyangia"           , "Bacteria; Rhodothermia"      ,  "Bacteria; Rubrobacteria"      ,
+"Bacteria; Saccharimonadia"     , "Bacteria; Spirochaetia"      ,  "Bacteria; Synergistia"        ,
+"Bacteria; Thermoleophilia"     , "Bacteria; vadinHA49"         ,  "Bacteria; Verrucomicrobiae"   ,
+"Bacteria; Vicinamibacteria"
+)
+Class_analysis[cols.num] <- sapply(Class_analysis[cols.num], as.numeric)
+sapply(Class_analysis, class)
+
+
+
+
+
+#         Subset data to only include baseline for subjects for general associations
+Class_pre <- Class_analysis[Class_analysis$Exposure == "Pre", ]
+
+
+
+############################################
+
+#### LOGISTIC regression analyses for CESD, PCL, and ASI against all class
+
+# List of outcome variables
+outcome_vars_binary <- c("CESD_bi", "PCL_bi", "ASI_bi")
+
+# List of bacterial class
+bacterial_class <- c(
+  "Bacteria; Abditibacteria"      , "Bacteria; Acidimicrobiia"    ,  "Bacteria; Actinobacteria"     ,
+  "Bacteria; Alphaproteobacteria" , "Bacteria; Anaerolineae"      ,  "Bacteria; Bacilli"            ,
+  "Bacteria; bacteriap25"         , "Bacteria; Bacteroidia"       ,  "Bacteria; Blastocatellia"     ,
+  "Bacteria; Campylobacteria"     , "Bacteria; Clostridia"        ,  "Bacteria; Coriobacteriia"     ,
+  "Bacteria; Cyanobacteriia"      , "Bacteria; Deinococci"        ,  "Bacteria; Desulfobulbia"      ,
+  "Bacteria; Desulfuromonadia"    , "Bacteria; Fusobacteriia"     ,  "Bacteria; Gammaproteobacteria",
+  "Bacteria; Gemmatimonadetes"    , "Bacteria; Gitt_GS_136"       ,  "Bacteria; Gracilibacteria"    ,
+  "Bacteria; Holophagae"          , "Bacteria; KD4_96"            ,  "Bacteria; Leptospirae"        ,
+  "Bacteria; MB_A2_108"           , "Bacteria; Myxococcia"        ,  "Bacteria; Negativicutes"      ,
+  "Bacteria; Nitrospiria"         , "Bacteria; Oligoflexia"       ,  "Bacteria; Planctomycetes"     ,
+  "Bacteria; Polyangia"           , "Bacteria; Rhodothermia"      ,  "Bacteria; Rubrobacteria"      ,
+  "Bacteria; Saccharimonadia"     , "Bacteria; Spirochaetia"      ,  "Bacteria; Synergistia"        ,
+  "Bacteria; Thermoleophilia"     , "Bacteria; vadinHA49"         ,  "Bacteria; Verrucomicrobiae"   ,
+  "Bacteria; Vicinamibacteria"
+)
+
+# Create an empty workbook
+wb <- createWorkbook()
+
+# Loop through each outcome variable
+for (outcome_var in outcome_vars_binary) {
+  # Results for the current outcome variable
+  Results_Per_Outcome <- lapply(bacterial_class, function(var) {
+    # Prepare the column name with backticks
+    var <- paste0("`", var, "`")
+    
+    # Create the formula dynamically
+    formula <- as.formula(paste(outcome_var, "~", var))
+    
+    # Perform logistic regression
+    res.logist <- glm(formula, data = Class_pre, family = "binomial")
+    
+    # Extract model summary
+    model_summary <- coef(summary(res.logist))
+    type_column <- ifelse(rownames(model_summary) == "(Intercept)", "Intercept", "Class")
+    
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|z|)"]  # Adjust column name if needed
+    
+    # Adjust p-values
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return a data frame
+    data.frame(
+      Outcome = outcome_var,
+      Class = var,
+      Type = type_column,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  })
+  
+  # Combine results for all phyla for the current outcome variable
+  combined_results <- do.call(rbind, Results_Per_Outcome)
+  
+  # Add the results to a new sheet in the workbook
+  addWorksheet(wb, sheetName = outcome_var)
+  writeData(wb, sheet = outcome_var, combined_results)
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "Class_logistic.xlsx", overwrite = TRUE)
+
+
+
+
+
+
+######################################################################################
+
+
+### LINEAR regression using CESD, PCL, ASI, and FAST as outcome variables
+
+
+#Test runs for linear models
+Test_CESD_class_Linear <- lm(CESD ~ `Bacteria; Abditibacteria`, data = Class_pre)
+summary(Test_CESD_class_Linear)
+
+### UPDATE  this code for each level (phyla, class etc.)
+#Use this for making a scatter plot of any significant bacteria phyla
+#        plot(Phylum_pre$CESD, Phylum_pre$`Bacteria; Abditibacteriota`, main = "Scatter Plot of CESD v Bacteria",
+#            xlab= "CESD", ylab="Bacteria",
+#              pch = 19, col = "blue")
+#     abline(Test_CESD_Phy_Linear, col = "red", lwd = 2)      This adds regression line to scatter plot
+
+
+#Check for residuals/QQ plot for need of transformation
+#par(mfrow = c(2, 2))
+#plot(Test_CESD_Phy_Linear)
+
+
+outcome_vars_linear <- c("CESD", "PCL", "ASI", "FAST")
+
+# Create an empty workbook
+wb <- createWorkbook()
+
+# Loop through each outcome variable
+for (outcome_var in outcome_vars_linear) {
+  # Results for the current outcome variable
+  Results_Per_Outcome <- lapply(bacterial_class, function(var) {
+    # Prepare the column name with backticks
+    var <- paste0("`", var, "`")
+    
+    # Create the formula dynamically
+    formula <- as.formula(paste(outcome_var, "~", var))
+    
+    # Perform logistic regression
+    res.lm <- lm(formula, data = Class_pre)
+    
+    # Extract model summary
+    model_summary <- coef(summary(res.lm))
+    type_column <- ifelse(rownames(model_summary) == "(Intercept)", "Intercept", "Class")
+    
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|t|)"]  # Adjust column name if needed
+    
+    # Adjust p-values
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return a data frame
+    data.frame(
+      Outcome = outcome_var,
+      Class = var,
+      Type = type_column,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  })
+  
+  # Combine results for all phyla for the current outcome variable
+  combined_results <- do.call(rbind, Results_Per_Outcome)
+  
+  # Add the results to a new sheet in the workbook
+  addWorksheet(wb, sheetName = outcome_var)
+  writeData(wb, sheet = outcome_var, combined_results)
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "All_linear_class.xlsx", overwrite = TRUE)
+
+
+
+
+#####       Checking Linear assumption for significant class
+
+Lin_check_Acidimicrobiia <- lm(ASI ~ `Bacteria; Acidimicrobiia`, data = Class_pre)
+shapiro.test(residuals(Lin_check_Acidimicrobiia))
+#Not normal residuals, so need to transform variable
+
+class_pre_tran <- Class_pre
+
+class_pre_tran$ASI <- log(class_pre_tran$ASI + 0.01)
+
+transform_asi <- lm(ASI ~ `Bacteria; Acidimicrobiia`, data = class_pre_tran)
+summary(transform_asi)
+
+# No longer significant
+
+
+############################################################################################
+
+#     Linear mixed model regression for changes between sessions
+
+
+# MAKEM SURE ID variable is factor and update at each level!!!
+#Phylum_analysis$ID <- as.factor(Phylum_analysis$ID)
+
+
+repeated_test_class <- lmer(`Bacteria; Abditibacteria`~ Exposure + (1 | ID), data = Class_analysis)
+summary(repeated_test_class)
+
+
+
+#bacteria ~ Time (Exposure variable (Subject is ID variable, ID is factor)))
+
+
+results_class_LMM <- lapply(c(
+  "Bacteria; Abditibacteria"      , "Bacteria; Acidimicrobiia"    ,  "Bacteria; Actinobacteria"     ,
+  "Bacteria; Alphaproteobacteria" , "Bacteria; Anaerolineae"      ,  "Bacteria; Bacilli"            ,
+  "Bacteria; bacteriap25"         , "Bacteria; Bacteroidia"       ,  "Bacteria; Blastocatellia"     ,
+  "Bacteria; Campylobacteria"     , "Bacteria; Clostridia"        ,  "Bacteria; Coriobacteriia"     ,
+  "Bacteria; Cyanobacteriia"      , "Bacteria; Deinococci"        ,  "Bacteria; Desulfobulbia"      ,
+  "Bacteria; Desulfuromonadia"    , "Bacteria; Fusobacteriia"     ,  "Bacteria; Gammaproteobacteria",
+  "Bacteria; Gemmatimonadetes"    , "Bacteria; Gitt_GS_136"       ,  "Bacteria; Gracilibacteria"    ,
+  "Bacteria; Holophagae"          , "Bacteria; KD4_96"            ,  "Bacteria; Leptospirae"        ,
+  "Bacteria; MB_A2_108"           , "Bacteria; Myxococcia"        ,  "Bacteria; Negativicutes"      ,
+  "Bacteria; Nitrospiria"         , "Bacteria; Oligoflexia"       ,  "Bacteria; Planctomycetes"     ,
+  "Bacteria; Polyangia"           , "Bacteria; Rhodothermia"      ,  "Bacteria; Rubrobacteria"      ,
+  "Bacteria; Saccharimonadia"     , "Bacteria; Spirochaetia"      ,  "Bacteria; Synergistia"        ,
+  "Bacteria; Thermoleophilia"     , "Bacteria; vadinHA49"         ,  "Bacteria; Verrucomicrobiae"   ,
+  "Bacteria; Vicinamibacteria"
+),
+function(var) {
+  var <- paste0("`", var, "`")
+  formula <- as.formula(paste(var, "~ Exposure + (1 | ID)"))
+  res.mixed <- lmer(formula, data = Class_analysis)
+  
+  model_summary <- coef(summary(res.mixed))
+  estimates <- model_summary[, "Estimate"]
+  std_errors <- model_summary[, "Std. Error"]
+  p_values <- model_summary[, "Pr(>|t|)"]
+  
+  p_adjusted_BH <- p.adjust(p_values, method = "BH")
+  p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+  
+  data.frame(
+    Class = var,
+    Estimate = estimates,
+    SE = std_errors,
+    Unadjusted_pvalue = p_values,
+    BH_pvalue = p_adjusted_BH,
+    Bonferroni_pvalue = p_adjusted_Bonf
+  )
+  
+})
+
+results_combined <- do.call(rbind, results_class_LMM)
+
+
+write.csv(results_combined, file = "Class_LMM.csv")
+
+
+####################################################################
+#####################################################################
+#####################################################################
+
+
+
+#             Using ORDER level dataset
+
+
+
+
+Order_analysis <- merge(worksheet, ORDER, by = "SampleID", all = FALSE)
+
+Order_analysis$ID <- as.factor(Order_analysis$ID)
+
+print(Order_analysis)
+
+#   Set up datset for loop analyses
+
+#colnames(Order_analysis)
+
+sapply(Order_analysis, class)
+cols.num <- c(
+"Bacteria; 0319_6G20"                         , 
+"Bacteria; 11_24"                             ,  "Bacteria; Abditibacteriales"                  ,
+"Bacteria; Absconditabacteriales_SR1_"        ,  "Bacteria; Acidithiobacillales"                ,
+"Bacteria; Actinomycetales"                   ,  "Bacteria; Alicyclobacillales"                 ,
+"Bacteria; Anaerolineales"                    ,  "Bacteria; Bacillales"                         ,
+"Bacteria; Bacteroidales"                     ,  "Bacteria; Bifidobacteriales"                  ,
+"Bacteria; Blastocatellales"                  ,  "Bacteria; Brevibacillales"                    ,
+"Bacteria; Burkholderiales"                   ,  "Bacteria; Caldilineales"                      ,
+"Bacteria; Campylobacterales"                 ,  "Bacteria; Cardiobacteriales"                  ,
+"Bacteria; CCD24"                             ,  "Bacteria; Chitinophagales"                    ,
+"Bacteria; Chloroplast"                       ,  "Bacteria; Chthoniobacterales"                 ,
+"Bacteria; Clostridia_UCG_014"                ,  "Bacteria; Clostridia_vadinBB60"               ,
+"Bacteria; Clostridiales"                     ,  "Bacteria; Coriobacteriales"                   ,
+"Bacteria; Corynebacteriales"                 ,  "Bacteria; Cytophagales"                       ,
+"Bacteria; Deinococcales"                     ,  "Bacteria; Desulfobulbales"                    ,
+"Bacteria; Desulfuromonadales"                ,  "Bacteria; Diplorickettsiales"                 ,
+"Bacteria; Enterobacterales"                  ,  "Bacteria; Erysipelotrichales"                 ,
+"Bacteria; Eubacteriales"                     ,  "Bacteria; Exiguobacterales"                   ,
+"Bacteria; Flavobacteriales"                  ,  "Bacteria; Frankiales"                         ,
+"Bacteria; Fusobacteriales"                   ,  "Bacteria; Gaiellales"                         ,
+"Bacteria; Gemmatimonadales"                  ,  "Bacteria; Haliangiales"                       ,
+"Bacteria; IMCC26256"                         ,  "Bacteria; Isosphaerales"                      ,
+"Bacteria; JGI_0000069_P22"                   ,  "Bacteria; Kineosporiales"                     ,
+"Bacteria; Lachnospirales"                    ,  "Bacteria; Lactobacillales"                    ,
+"Bacteria; Legionellales"                     ,  "Bacteria; Leptospirales"                      ,
+"Bacteria; Micrococcales"                     ,  "Bacteria; Micromonosporales"                  ,
+"Bacteria; Microtrichales"                    ,  "Bacteria; Monoglobales"                       ,
+"Bacteria; Mycoplasmatales"                   ,  "Bacteria; Myxococcales"                       ,
+"Bacteria; Nitrospirales"                     ,  "Bacteria; Opitutales"                         ,
+"Bacteria; Oscillospirales"                   ,  "Bacteria; Paenibacillales"                    ,
+"Bacteria; Pedosphaerales"                    ,  "Bacteria; Peptostreptococcales_Tissierellales",
+"Bacteria; Pirellulales"                      ,  "Bacteria; Planctomycetales"                   ,
+"Bacteria; PLTA13"                            ,  "Bacteria; Polyangiales"                       ,
+"Bacteria; Propionibacteriales"               ,  "Bacteria; Pseudomonadales"                    ,
+"Bacteria; Pseudonocardiales"                 ,  "Bacteria; Pyrinomonadales"                    ,
+"Bacteria; Rhodothermales"                    ,  "Bacteria; Rickettsiales"                      ,
+"Bacteria; Rubrobacterales"                   ,  "Bacteria; Saccharimonadales"                  ,
+"Bacteria; Salinisphaerales"                  ,  "Bacteria; SBR1031"                            ,
+"Bacteria; Solirubrobacterales"               ,  "Bacteria; Sphingobacteriales"                 ,
+"Bacteria; Spirochaetales"                    ,  "Bacteria; Staphylococcales"                   ,
+"Bacteria; Steroidobacterales"                ,  "Bacteria; Streptomycetales"                   ,
+"Bacteria; Streptosporangiales"               ,  "Bacteria; Subgroup_7"                         ,
+"Bacteria; Synergistales"                     ,  "Bacteria; Thermales"                          ,
+"Bacteria; Thermoactinomycetales"             ,  "Bacteria; Unc. OTU0032"                       ,
+"Bacteria; Unc. OTU0034"                      ,  "Bacteria; Unc. OTU0042"                       ,
+"Bacteria; Unc. OTU0460"                      ,  "Bacteria; Unc. OTU0472"                       ,
+"Bacteria; Unc. OTU0489"                      ,  "Bacteria; Unc. OTU0491"                       ,
+"Bacteria; Unc. OTU0982"                      ,  "Bacteria; Unc. OTU1183"                       ,
+"Bacteria; Unc. OTU1185"                      ,  "Bacteria; Unc. OTU1186"                       ,
+"Bacteria; Unc. OTU1199"                      ,  "Bacteria; Veillonellales_Selenomonadales"     ,
+"Bacteria; Verrucomicrobiales"                ,  "Bacteria; Vicinamibacterales"                 ,
+"Bacteria; Xanthomonadales"   
+)
+Order_analysis[cols.num] <- sapply(Order_analysis[cols.num], as.numeric)
+sapply(Order_analysis, class)
+
+
+
+
+
+#         Subset data to only include baseline for subjects for general associations
+Order_pre <- Order_analysis[Order_analysis$Exposure == "Pre", ]
+
+
+############################################
+
+############################################
+
+#### LOGISTIC regression analyses for CESD, PCL, and ASI against all Order
+
+# List of outcome variables
+outcome_vars_binary <- c("CESD_bi", "PCL_bi", "ASI_bi")
+
+# List of bacterial Order
+bacterial_order <- c(
+  "Bacteria; 0319_6G20"                         , 
+  "Bacteria; 11_24"                             ,  "Bacteria; Abditibacteriales"                  ,
+  "Bacteria; Absconditabacteriales_SR1_"        ,  "Bacteria; Acidithiobacillales"                ,
+  "Bacteria; Actinomycetales"                   ,  "Bacteria; Alicyclobacillales"                 ,
+  "Bacteria; Anaerolineales"                    ,  "Bacteria; Bacillales"                         ,
+  "Bacteria; Bacteroidales"                     ,  "Bacteria; Bifidobacteriales"                  ,
+  "Bacteria; Blastocatellales"                  ,  "Bacteria; Brevibacillales"                    ,
+  "Bacteria; Burkholderiales"                   ,  "Bacteria; Caldilineales"                      ,
+  "Bacteria; Campylobacterales"                 ,  "Bacteria; Cardiobacteriales"                  ,
+  "Bacteria; CCD24"                             ,  "Bacteria; Chitinophagales"                    ,
+  "Bacteria; Chloroplast"                       ,  "Bacteria; Chthoniobacterales"                 ,
+  "Bacteria; Clostridia_UCG_014"                ,  "Bacteria; Clostridia_vadinBB60"               ,
+  "Bacteria; Clostridiales"                     ,  "Bacteria; Coriobacteriales"                   ,
+  "Bacteria; Corynebacteriales"                 ,  "Bacteria; Cytophagales"                       ,
+  "Bacteria; Deinococcales"                     ,  "Bacteria; Desulfobulbales"                    ,
+  "Bacteria; Desulfuromonadales"                ,  "Bacteria; Diplorickettsiales"                 ,
+  "Bacteria; Enterobacterales"                  ,  "Bacteria; Erysipelotrichales"                 ,
+  "Bacteria; Eubacteriales"                     ,  "Bacteria; Exiguobacterales"                   ,
+  "Bacteria; Flavobacteriales"                  ,  "Bacteria; Frankiales"                         ,
+  "Bacteria; Fusobacteriales"                   ,  "Bacteria; Gaiellales"                         ,
+  "Bacteria; Gemmatimonadales"                  ,  "Bacteria; Haliangiales"                       ,
+  "Bacteria; IMCC26256"                         ,  "Bacteria; Isosphaerales"                      ,
+  "Bacteria; JGI_0000069_P22"                   ,  "Bacteria; Kineosporiales"                     ,
+  "Bacteria; Lachnospirales"                    ,  "Bacteria; Lactobacillales"                    ,
+  "Bacteria; Legionellales"                     ,  "Bacteria; Leptospirales"                      ,
+  "Bacteria; Micrococcales"                     ,  "Bacteria; Micromonosporales"                  ,
+  "Bacteria; Microtrichales"                    ,  "Bacteria; Monoglobales"                       ,
+  "Bacteria; Mycoplasmatales"                   ,  "Bacteria; Myxococcales"                       ,
+  "Bacteria; Nitrospirales"                     ,  "Bacteria; Opitutales"                         ,
+  "Bacteria; Oscillospirales"                   ,  "Bacteria; Paenibacillales"                    ,
+  "Bacteria; Pedosphaerales"                    ,  "Bacteria; Peptostreptococcales_Tissierellales",
+  "Bacteria; Pirellulales"                      ,  "Bacteria; Planctomycetales"                   ,
+  "Bacteria; PLTA13"                            ,  "Bacteria; Polyangiales"                       ,
+  "Bacteria; Propionibacteriales"               ,  "Bacteria; Pseudomonadales"                    ,
+  "Bacteria; Pseudonocardiales"                 ,  "Bacteria; Pyrinomonadales"                    ,
+  "Bacteria; Rhodothermales"                    ,  "Bacteria; Rickettsiales"                      ,
+  "Bacteria; Rubrobacterales"                   ,  "Bacteria; Saccharimonadales"                  ,
+  "Bacteria; Salinisphaerales"                  ,  "Bacteria; SBR1031"                            ,
+  "Bacteria; Solirubrobacterales"               ,  "Bacteria; Sphingobacteriales"                 ,
+  "Bacteria; Spirochaetales"                    ,  "Bacteria; Staphylococcales"                   ,
+  "Bacteria; Steroidobacterales"                ,  "Bacteria; Streptomycetales"                   ,
+  "Bacteria; Streptosporangiales"               ,  "Bacteria; Subgroup_7"                         ,
+  "Bacteria; Synergistales"                     ,  "Bacteria; Thermales"                          ,
+  "Bacteria; Thermoactinomycetales"             ,  "Bacteria; Unc. OTU0032"                       ,
+  "Bacteria; Unc. OTU0034"                      ,  "Bacteria; Unc. OTU0042"                       ,
+  "Bacteria; Unc. OTU0460"                      ,  "Bacteria; Unc. OTU0472"                       ,
+  "Bacteria; Unc. OTU0489"                      ,  "Bacteria; Unc. OTU0491"                       ,
+  "Bacteria; Unc. OTU0982"                      ,  "Bacteria; Unc. OTU1183"                       ,
+  "Bacteria; Unc. OTU1185"                      ,  "Bacteria; Unc. OTU1186"                       ,
+  "Bacteria; Unc. OTU1199"                      ,  "Bacteria; Veillonellales_Selenomonadales"     ,
+  "Bacteria; Verrucomicrobiales"                ,  "Bacteria; Vicinamibacterales"                 ,
+  "Bacteria; Xanthomonadales" 
+)
+
+# Create an empty workbook
+wb <- createWorkbook()
+
+# Loop through each outcome variable
+for (outcome_var in outcome_vars_binary) {
+  # Results for the current outcome variable
+  Results_Per_Outcome <- lapply(bacterial_order, function(var) {
+    # Prepare the column name with backticks
+    var <- paste0("`", var, "`")
+    
+    # Create the formula dynamically
+    formula <- as.formula(paste(outcome_var, "~", var))
+    
+    # Perform logistic regression
+    res.logist <- glm(formula, data = Order_pre, family = "binomial")
+    
+    # Extract model summary
+    model_summary <- coef(summary(res.logist))
+    type_column <- ifelse(rownames(model_summary) == "(Intercept)", "Intercept", "Order")
+    
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|z|)"]  # Adjust column name if needed
+    
+    # Adjust p-values
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return a data frame
+    data.frame(
+      Outcome = outcome_var,
+      Order = var,
+      Type = type_column,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  })
+  
+  # Combine results for all phyla for the current outcome variable
+  combined_results <- do.call(rbind, Results_Per_Outcome)
+  
+  # Add the results to a new sheet in the workbook
+  addWorksheet(wb, sheetName = outcome_var)
+  writeData(wb, sheet = outcome_var, combined_results)
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "Order_logistic.xlsx", overwrite = TRUE)
+
+
+######################################################################################
+
+
+### LINEAR regression using CESD, PCL, ASI, and FAST as outcome variables
+
+
+#Test runs for linear models
+Test_CESD_order_Linear <- lm(CESD ~ `Bacteria; 0319_6G20`, data = Order_pre)
+summary(Test_CESD_order_Linear)
+
+### UPDATE  this code for each level (phyla, class etc.)
+#Use this for making a scatter plot of any significant bacteria phyla
+    #    plot(Order_pre$CESD, Order_pre$`Bacteria; 0319_6G20`, main = "Scatter Plot of CESD v Bacteria",
+    #        xlab= "CESD", ylab="Bacteria",
+    #          pch = 19, col = "blue")
+    # abline(Test_CESD_order_Linear, col = "red", lwd = 2)      #This adds regression line to scatter plot
+
+
+#Check for residuals/QQ plot for need of transformation
+#par(mfrow = c(2, 2))
+#plot(Test_CESD_order_Linear)
+
+
+outcome_vars_linear <- c("CESD", "PCL", "ASI", "FAST")
+
+# Create an empty workbook
+wb <- createWorkbook()
+
+# Loop through each outcome variable
+for (outcome_var in outcome_vars_linear) {
+  # Results for the current outcome variable
+  Results_Per_Outcome <- lapply(bacterial_order, function(var) {
+    # Prepare the column name with backticks
+    var <- paste0("`", var, "`")
+    
+    # Create the formula dynamically
+    formula <- as.formula(paste(outcome_var, "~", var))
+    
+    # Perform logistic regression
+    res.lm <- lm(formula, data = Order_pre)
+    
+    # Extract model summary
+    model_summary <- coef(summary(res.lm))
+    type_column <- ifelse(rownames(model_summary) == "(Intercept)", "Intercept", "Order")
+    
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|t|)"]  # Adjust column name if needed
+    
+    # Adjust p-values
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return a data frame
+    data.frame(
+      Outcome = outcome_var,
+      Order = var,
+      Type = type_column,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  })
+  
+  # Combine results for all phyla for the current outcome variable
+  combined_results <- do.call(rbind, Results_Per_Outcome)
+  
+  # Add the results to a new sheet in the workbook
+  addWorksheet(wb, sheetName = outcome_var)
+  writeData(wb, sheet = outcome_var, combined_results)
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "All_linear_order.xlsx", overwrite = TRUE)
+
+
+############################################################################################
+
+#     Linear mixed model regression for changes between sessions
+
+
+# MAKEM SURE ID variable is factor and update at each level!!!
+#Phylum_analysis$ID <- as.factor(Phylum_analysis$ID)
+
+
+repeated_test_order <- lmer(`Bacteria; 0319_6G20`~ Exposure + (1 | ID), data = Order_analysis)
+summary(repeated_test_order)
+
+
+
+#bacteria ~ Time (Exposure variable (Subject is ID variable, ID is factor)))
+
+
+results_order_LMM <- lapply(c(
+  "Bacteria; 0319_6G20"                         , 
+  "Bacteria; 11_24"                             ,  "Bacteria; Abditibacteriales"                  ,
+  "Bacteria; Absconditabacteriales_SR1_"        ,  "Bacteria; Acidithiobacillales"                ,
+  "Bacteria; Actinomycetales"                   ,  "Bacteria; Alicyclobacillales"                 ,
+  "Bacteria; Anaerolineales"                    ,  "Bacteria; Bacillales"                         ,
+  "Bacteria; Bacteroidales"                     ,  "Bacteria; Bifidobacteriales"                  ,
+  "Bacteria; Blastocatellales"                  ,  "Bacteria; Brevibacillales"                    ,
+  "Bacteria; Burkholderiales"                   ,  "Bacteria; Caldilineales"                      ,
+  "Bacteria; Campylobacterales"                 ,  "Bacteria; Cardiobacteriales"                  ,
+  "Bacteria; CCD24"                             ,  "Bacteria; Chitinophagales"                    ,
+  "Bacteria; Chloroplast"                       ,  "Bacteria; Chthoniobacterales"                 ,
+  "Bacteria; Clostridia_UCG_014"                ,  "Bacteria; Clostridia_vadinBB60"               ,
+  "Bacteria; Clostridiales"                     ,  "Bacteria; Coriobacteriales"                   ,
+  "Bacteria; Corynebacteriales"                 ,  "Bacteria; Cytophagales"                       ,
+  "Bacteria; Deinococcales"                     ,  "Bacteria; Desulfobulbales"                    ,
+  "Bacteria; Desulfuromonadales"                ,  "Bacteria; Diplorickettsiales"                 ,
+  "Bacteria; Enterobacterales"                  ,  "Bacteria; Erysipelotrichales"                 ,
+  "Bacteria; Eubacteriales"                     ,  "Bacteria; Exiguobacterales"                   ,
+  "Bacteria; Flavobacteriales"                  ,  "Bacteria; Frankiales"                         ,
+  "Bacteria; Fusobacteriales"                   ,  "Bacteria; Gaiellales"                         ,
+  "Bacteria; Gemmatimonadales"                  ,  "Bacteria; Haliangiales"                       ,
+  "Bacteria; IMCC26256"                         ,  "Bacteria; Isosphaerales"                      ,
+  "Bacteria; JGI_0000069_P22"                   ,  "Bacteria; Kineosporiales"                     ,
+  "Bacteria; Lachnospirales"                    ,  "Bacteria; Lactobacillales"                    ,
+  "Bacteria; Legionellales"                     ,  "Bacteria; Leptospirales"                      ,
+  "Bacteria; Micrococcales"                     ,  "Bacteria; Micromonosporales"                  ,
+  "Bacteria; Microtrichales"                    ,  "Bacteria; Monoglobales"                       ,
+  "Bacteria; Mycoplasmatales"                   ,  "Bacteria; Myxococcales"                       ,
+  "Bacteria; Nitrospirales"                     ,  "Bacteria; Opitutales"                         ,
+  "Bacteria; Oscillospirales"                   ,  "Bacteria; Paenibacillales"                    ,
+  "Bacteria; Pedosphaerales"                    ,  "Bacteria; Peptostreptococcales_Tissierellales",
+  "Bacteria; Pirellulales"                      ,  "Bacteria; Planctomycetales"                   ,
+  "Bacteria; PLTA13"                            ,  "Bacteria; Polyangiales"                       ,
+  "Bacteria; Propionibacteriales"               ,  "Bacteria; Pseudomonadales"                    ,
+  "Bacteria; Pseudonocardiales"                 ,  "Bacteria; Pyrinomonadales"                    ,
+  "Bacteria; Rhodothermales"                    ,  "Bacteria; Rickettsiales"                      ,
+  "Bacteria; Rubrobacterales"                   ,  "Bacteria; Saccharimonadales"                  ,
+  "Bacteria; Salinisphaerales"                  ,  "Bacteria; SBR1031"                            ,
+  "Bacteria; Solirubrobacterales"               ,  "Bacteria; Sphingobacteriales"                 ,
+  "Bacteria; Spirochaetales"                    ,  "Bacteria; Staphylococcales"                   ,
+  "Bacteria; Steroidobacterales"                ,  "Bacteria; Streptomycetales"                   ,
+  "Bacteria; Streptosporangiales"               ,  "Bacteria; Subgroup_7"                         ,
+  "Bacteria; Synergistales"                     ,  "Bacteria; Thermales"                          ,
+  "Bacteria; Thermoactinomycetales"             ,  "Bacteria; Unc. OTU0032"                       ,
+  "Bacteria; Unc. OTU0034"                      ,  "Bacteria; Unc. OTU0042"                       ,
+  "Bacteria; Unc. OTU0460"                      ,  "Bacteria; Unc. OTU0472"                       ,
+  "Bacteria; Unc. OTU0489"                      ,  "Bacteria; Unc. OTU0491"                       ,
+  "Bacteria; Unc. OTU0982"                      ,  "Bacteria; Unc. OTU1183"                       ,
+  "Bacteria; Unc. OTU1185"                      ,  "Bacteria; Unc. OTU1186"                       ,
+  "Bacteria; Unc. OTU1199"                      ,  "Bacteria; Veillonellales_Selenomonadales"     ,
+  "Bacteria; Verrucomicrobiales"                ,  "Bacteria; Vicinamibacterales"                 ,
+  "Bacteria; Xanthomonadales" 
+),
+function(var) {
+  var <- paste0("`", var, "`")
+  formula <- as.formula(paste(var, "~ Exposure + (1 | ID)"))
+  res.mixed <- lmer(formula, data = Order_analysis)
+  
+  model_summary <- coef(summary(res.mixed))
+  estimates <- model_summary[, "Estimate"]
+  std_errors <- model_summary[, "Std. Error"]
+  p_values <- model_summary[, "Pr(>|t|)"]
+  
+  p_adjusted_BH <- p.adjust(p_values, method = "BH")
+  p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+  
+  data.frame(
+    Order = var,
+    Estimate = estimates,
+    SE = std_errors,
+    Unadjusted_pvalue = p_values,
+    BH_pvalue = p_adjusted_BH,
+    Bonferroni_pvalue = p_adjusted_Bonf
+  )
+  
+})
+
+results_combined <- do.call(rbind, results_order_LMM)
+
+
+write.csv(results_combined, file = "Order_LMM.csv")
+
+
+####################################################################
+#####################################################################
+#####################################################################
+
+
+
+#             Using FAMILY level dataset
+
+
+
+
+Family_analysis <- merge(worksheet, FAMILY, by = "SampleID", all = FALSE)
+
+Family_analysis$ID <- as.factor(Family_analysis$ID)
+
+print(Family_analysis)
+
+#   Set up datset for loop analyses
+
+#colnames(Family_analysis)
+
+sapply(Family_analysis, class)
+cols.num <- c(
+"Bacteria; 67_14"                   ,  "Bacteria; A4b"                      , "Bacteria; Abditibacteriaceae"       , 
+"Bacteria; Acidithiobacillaceae"    ,  "Bacteria; Acidothermaceae"          , "Bacteria; Actinomycetaceae"         ,
+"Bacteria; Aerococcaceae"           ,  "Bacteria; Aeromonadaceae"           , "Bacteria; Akkermansiaceae"          ,
+"Bacteria; Alcaligenaceae"          ,  "Bacteria; Alcanivoracaceae"         , "Bacteria; Alcanivoracaceae1"        ,
+"Bacteria; Alicyclobacillaceae"     ,  "Bacteria; Alteromonadaceae"         , "Bacteria; Amoebophilaceae"          ,
+"Bacteria; Anaerolineaceae"         ,  "Bacteria; Anaerovoracaceae"         , "Bacteria; Atopobiaceae"             ,
+"Bacteria; Bacillaceae"             ,  "Bacteria; Bacteroidaceae"           , "Bacteria; Bifidobacteriaceae"       ,
+"Bacteria; Blastocatellaceae"       ,  "Bacteria; Bogoriellaceae"           , "Bacteria; Brevibacillaceae"         ,
+"Bacteria; Brevibacteriaceae"       ,  "Bacteria; Burkholderiaceae"         , "Bacteria; Butyricicoccaceae"        ,
+"Bacteria; Caldilineaceae"          ,  "Bacteria; Campylobacteraceae"       , "Bacteria; Cardiobacteriaceae"       ,
+"Bacteria; Carnobacteriaceae"       ,  "Bacteria; Cellulomonadaceae"        , "Bacteria; Cellvibrionaceae"         ,
+"Bacteria; Chitinophagaceae"        ,  "Bacteria; Chromobacteriaceae"       , "Bacteria; Chthoniobacteraceae"      ,
+"Bacteria; Clostridiaceae"          ,  "Bacteria; Comamonadaceae"           , "Bacteria; Coriobacteriaceae"        ,
+"Bacteria; Corynebacteriaceae"      ,  "Bacteria; Defluviitaleaceae"        , "Bacteria; Deinococcaceae"           ,
+"Bacteria; Dermabacteraceae"        ,  "Bacteria; Dermacoccaceae"           , "Bacteria; Desulfocapsaceae"         ,
+"Bacteria; Desulfuromonadaceae"     ,  "Bacteria; Dietziaceae"              , "Bacteria; Diplorickettsiaceae"      ,
+"Bacteria; Eggerthellaceae"         ,  "Bacteria; Enterobacteriaceae"       , "Bacteria; Enterococcaceae"          ,
+"Bacteria; Erwiniaceae"             ,  "Bacteria; Erysipelatoclostridiaceae", "Bacteria; Erysipelotrichaceae"      ,
+"Bacteria; Eubacteriaceae"          ,  "Bacteria; Exiguobacteraceae"        , "Bacteria; Family_XI"                ,
+"Bacteria; Flavobacteriaceae"       ,  "Bacteria; Frankiaceae"              , "Bacteria; Fusobacteriaceae"         ,
+"Bacteria; Gaiellaceae"             ,  "Bacteria; Gemellaceae"              , "Bacteria; Gemmatimonadaceae"        ,
+"Bacteria; Geodermatophilaceae"     ,  "Bacteria; Haliangiaceae"            , "Bacteria; Halomonadaceae"           ,
+"Bacteria; Helicobacteraceae"       ,  "Bacteria; Hungateiclostridiaceae"   , "Bacteria; Hydrogenophilaceae"       ,
+"Bacteria; Hymenobacteraceae"       ,  "Bacteria; Iamiaceae"                , "Bacteria; Idiomarinaceae"           ,
+"Bacteria; Ilumatobacteraceae"      ,  "Bacteria; Intrasporangiaceae"       , "Bacteria; Isosphaeraceae"           ,
+"Bacteria; Kineosporiaceae"         ,  "Bacteria; Lachnospiraceae"          , "Bacteria; Lactobacillaceae"         ,
+"Bacteria; Legionellaceae"          ,  "Bacteria; Lentimicrobiaceae"        , "Bacteria; Leptospiraceae"           ,
+"Bacteria; Leptotrichiaceae"        ,  "Bacteria; Listeriaceae"             , "Bacteria; Methylophilaceae"         ,
+"Bacteria; Microbacteriaceae"       ,  "Bacteria; Micrococcaceae"           , "Bacteria; Micromonosporaceae"       ,
+"Bacteria; Microscillaceae"         ,  "Bacteria; Mitochondria"             , "Bacteria; Monoglobaceae"            ,
+"Bacteria; Moraxellaceae"           ,  "Bacteria; Morganellaceae"           , "Bacteria; Muribaculaceae"           ,
+"Bacteria; Mycobacteriaceae"        ,  "Bacteria; Mycoplasmataceae"         , "Bacteria; Myxococcaceae"            ,
+"Bacteria; Nakamurellaceae"         ,  "Bacteria; Neisseriaceae"            , "Bacteria; Nitrosomonadaceae"        ,
+"Bacteria; Nitrospiraceae"          ,  "Bacteria; Nocardiaceae"             , "Bacteria; Nocardioidaceae"          ,
+"Bacteria; Nocardiopsaceae"         ,  "Bacteria; NS9_marine"               , "Bacteria; Opitutaceae"              ,
+"Bacteria; Oxalobacteraceae"        ,  "Bacteria; Paenibacillaceae"         , "Bacteria; Paludibacteraceae"        ,
+"Bacteria; Pasteurellaceae"         ,  "Bacteria; Pedosphaeraceae"          , "Bacteria; Peptostreptococcaceae"    ,
+"Bacteria; Pirellulaceae"           ,  "Bacteria; Planococcaceae"           , "Bacteria; Polyangiaceae"            ,
+"Bacteria; Porphyromonadaceae"      ,  "Bacteria; Prevotellaceae"           , "Bacteria; Propionibacteriaceae"     ,
+"Bacteria; Pseudomonadaceae"        ,  "Bacteria; Pseudonocardiaceae"       , "Bacteria; Pyrinomonadaceae"         ,
+"Bacteria; Rhodanobacteraceae"      ,  "Bacteria; Rhodocyclaceae"           , "Bacteria; Rhodothermaceae"          ,
+"Bacteria; Rikenellaceae"           ,  "Bacteria; Rubinisphaeraceae"        , "Bacteria; Rubrobacteriaceae"        ,
+"Bacteria; Ruminococcaceae"         ,  "Bacteria; Saccharimonadaceae"       , "Bacteria; Sanguibacteraceae"        ,
+"Bacteria; SC_I_84"                 ,  "Bacteria; Selenomonadaceae"         , "Bacteria; Solimonadaceae"           ,
+"Bacteria; Solirubrobacteraceae"    ,  "Bacteria; Sphingobacteriaceae"      , "Bacteria; Spirochaetaceae"          ,
+"Bacteria; Spirosomaceae"           ,  "Bacteria; Sporichthyaceae"          , "Bacteria; Staphylococcaceae"        ,
+"Bacteria; Steroidobacteraceae"     ,  "Bacteria; Streptococcaceae"         , "Bacteria; Streptomycetaceae"        ,
+"Bacteria; Sutterellaceae"          ,  "Bacteria; Synergistaceae"           , "Bacteria; Tannerellaceae"           ,
+"Bacteria; Terrimicrobiaceae"       ,  "Bacteria; Thermaceae"               , "Bacteria; Thermoactinomycetaceae"   ,
+"Bacteria; Thermomonosporaceae"     ,  "Bacteria; TRA3_20"                  , "Bacteria; Trueperaceae"             ,
+"Bacteria; Unc. OTU0030"            ,  "Bacteria; Unc. OTU0031"             , "Bacteria; Unc. OTU0032"             ,
+"Bacteria; Unc. OTU0034"            ,  "Bacteria; Unc. OTU0042"             , "Bacteria; Unc. OTU0106"             ,
+"Bacteria; Unc. OTU0107"            ,  "Bacteria; Unc. OTU0115"             , "Bacteria; Unc. OTU0122"             ,
+"Bacteria; Unc. OTU0152"            ,  "Bacteria; Unc. OTU0375"             , "Bacteria; Unc. OTU0460"             ,
+"Bacteria; Unc. OTU0463"            ,  "Bacteria; Unc. OTU0472"             , "Bacteria; Unc. OTU0489"             ,
+"Bacteria; Unc. OTU0491"            ,  "Bacteria; Unc. OTU0514"             , "Bacteria; Unc. OTU0536"             ,
+"Bacteria; Unc. OTU0742"            ,  "Bacteria; Unc. OTU0744"             , "Bacteria; Unc. OTU0785"             ,
+"Bacteria; Unc. OTU0964"            ,  "Bacteria; Unc. OTU0965"             , "Bacteria; Unc. OTU0982"             ,
+"Bacteria; Unc. OTU1104"            ,  "Bacteria; Unc. OTU1110"             , "Bacteria; Unc. OTU1122"             ,
+"Bacteria; Unc. OTU1127"            ,  "Bacteria; Unc. OTU1128"             , "Bacteria; Unc. OTU1129"             ,
+"Bacteria; Unc. OTU1132"            ,  "Bacteria; Unc. OTU1134"             , "Bacteria; Unc. OTU1151"             ,
+"Bacteria; Unc. OTU1166"            ,  "Bacteria; Unc. OTU1183"             , "Bacteria; Unc. OTU1185"             ,
+"Bacteria; Unc. OTU1186"            ,  "Bacteria; Unc. OTU1198"             , "Bacteria; Unc. OTU1199"             ,
+"Bacteria; Unc. OTU1223"            ,  "Bacteria; Unc. OTU1224"             , "Bacteria; Unc. OTU1563"             ,
+"Bacteria; Unc. OTU1587"            ,  "Bacteria; Unc. OTU1599"             , "Bacteria; Unc. OTU1624"             ,
+"Bacteria; Unc. OTU1796"            ,  "Bacteria; Unc. OTU1797"             , "Bacteria; Unc. OTU1818"             ,
+"Bacteria; Unc. OTU1822"            ,  "Bacteria; Veillonellaceae"          , "Bacteria; Verrucomicrobiaceae"      ,
+"Bacteria; Vibrionaceae"            ,  "Bacteria; Vicinamibacteraceae"      , "Bacteria; Weeksellaceae"            ,
+"Bacteria; Xanthomonadaceae"        ,  "Bacteria; Yersiniaceae"  
+)
+Family_analysis[cols.num] <- sapply(Family_analysis[cols.num], as.numeric)
+sapply(Family_analysis, class)
+
+
+
+
+
+#         Subset data to only include baseline for subjects for general associations
+Family_pre <- Family_analysis[Family_analysis$Exposure == "Pre", ]
+
+
+
+############################################
+
+############################################
+
+#### LOGISTIC regression analyses for CESD, PCL, and ASI against all Family
+
+
+Test_CESD_FAMILY_logistic <- glm(CESD_bi~`Bacteria; 67_14`, data = Family_pre, family = "binomial")
+summary(Test_CESD_FAMILY_logistic)
+
+# List of outcome variables
+outcome_vars_binary <- c("CESD_bi", "PCL_bi", "ASI_bi")
+
+# List of bacterial Family
+bacterial_family <- c(
+  "Bacteria; 67_14"                   ,  "Bacteria; A4b"                      , "Bacteria; Abditibacteriaceae"       , 
+  "Bacteria; Acidithiobacillaceae"    ,  "Bacteria; Acidothermaceae"          , "Bacteria; Actinomycetaceae"         ,
+  "Bacteria; Aerococcaceae"           ,  "Bacteria; Aeromonadaceae"           , "Bacteria; Akkermansiaceae"          ,
+  "Bacteria; Alcaligenaceae"          ,  "Bacteria; Alcanivoracaceae"         , "Bacteria; Alcanivoracaceae1"        ,
+  "Bacteria; Alicyclobacillaceae"     ,  "Bacteria; Alteromonadaceae"         , "Bacteria; Amoebophilaceae"          ,
+  "Bacteria; Anaerolineaceae"         ,  "Bacteria; Anaerovoracaceae"         , "Bacteria; Atopobiaceae"             ,
+  "Bacteria; Bacillaceae"             ,  "Bacteria; Bacteroidaceae"           , "Bacteria; Bifidobacteriaceae"       ,
+  "Bacteria; Blastocatellaceae"       ,  "Bacteria; Bogoriellaceae"           , "Bacteria; Brevibacillaceae"         ,
+  "Bacteria; Brevibacteriaceae"       ,  "Bacteria; Burkholderiaceae"         , "Bacteria; Butyricicoccaceae"        ,
+  "Bacteria; Caldilineaceae"          ,  "Bacteria; Campylobacteraceae"       , "Bacteria; Cardiobacteriaceae"       ,
+  "Bacteria; Carnobacteriaceae"       ,  "Bacteria; Cellulomonadaceae"        , "Bacteria; Cellvibrionaceae"         ,
+  "Bacteria; Chitinophagaceae"        ,  "Bacteria; Chromobacteriaceae"       , "Bacteria; Chthoniobacteraceae"      ,
+  "Bacteria; Clostridiaceae"          ,  "Bacteria; Comamonadaceae"           , "Bacteria; Coriobacteriaceae"        ,
+  "Bacteria; Corynebacteriaceae"      ,  "Bacteria; Defluviitaleaceae"        , "Bacteria; Deinococcaceae"           ,
+  "Bacteria; Dermabacteraceae"        ,  "Bacteria; Dermacoccaceae"           , "Bacteria; Desulfocapsaceae"         ,
+  "Bacteria; Desulfuromonadaceae"     ,  "Bacteria; Dietziaceae"              , "Bacteria; Diplorickettsiaceae"      ,
+  "Bacteria; Eggerthellaceae"         ,  "Bacteria; Enterobacteriaceae"       , "Bacteria; Enterococcaceae"          ,
+  "Bacteria; Erwiniaceae"             ,  "Bacteria; Erysipelatoclostridiaceae", "Bacteria; Erysipelotrichaceae"      ,
+  "Bacteria; Eubacteriaceae"          ,  "Bacteria; Exiguobacteraceae"        , "Bacteria; Family_XI"                ,
+  "Bacteria; Flavobacteriaceae"       ,  "Bacteria; Frankiaceae"              , "Bacteria; Fusobacteriaceae"         ,
+  "Bacteria; Gaiellaceae"             ,  "Bacteria; Gemellaceae"              , "Bacteria; Gemmatimonadaceae"        ,
+  "Bacteria; Geodermatophilaceae"     ,  "Bacteria; Haliangiaceae"            , "Bacteria; Halomonadaceae"           ,
+  "Bacteria; Helicobacteraceae"       ,  "Bacteria; Hungateiclostridiaceae"   , "Bacteria; Hydrogenophilaceae"       ,
+  "Bacteria; Hymenobacteraceae"       ,  "Bacteria; Iamiaceae"                , "Bacteria; Idiomarinaceae"           ,
+  "Bacteria; Ilumatobacteraceae"      ,  "Bacteria; Intrasporangiaceae"       , "Bacteria; Isosphaeraceae"           ,
+  "Bacteria; Kineosporiaceae"         ,  "Bacteria; Lachnospiraceae"          , "Bacteria; Lactobacillaceae"         ,
+  "Bacteria; Legionellaceae"          ,  "Bacteria; Lentimicrobiaceae"        , "Bacteria; Leptospiraceae"           ,
+  "Bacteria; Leptotrichiaceae"        ,  "Bacteria; Listeriaceae"             , "Bacteria; Methylophilaceae"         ,
+  "Bacteria; Microbacteriaceae"       ,  "Bacteria; Micrococcaceae"           , "Bacteria; Micromonosporaceae"       ,
+  "Bacteria; Microscillaceae"         ,  "Bacteria; Mitochondria"             , "Bacteria; Monoglobaceae"            ,
+  "Bacteria; Moraxellaceae"           ,  "Bacteria; Morganellaceae"           , "Bacteria; Muribaculaceae"           ,
+  "Bacteria; Mycobacteriaceae"        ,  "Bacteria; Mycoplasmataceae"         , "Bacteria; Myxococcaceae"            ,
+  "Bacteria; Nakamurellaceae"         ,  "Bacteria; Neisseriaceae"            , "Bacteria; Nitrosomonadaceae"        ,
+  "Bacteria; Nitrospiraceae"          ,  "Bacteria; Nocardiaceae"             , "Bacteria; Nocardioidaceae"          ,
+  "Bacteria; Nocardiopsaceae"         ,  "Bacteria; NS9_marine"               , "Bacteria; Opitutaceae"              ,
+  "Bacteria; Oxalobacteraceae"        ,  "Bacteria; Paenibacillaceae"         , "Bacteria; Paludibacteraceae"        ,
+  "Bacteria; Pasteurellaceae"         ,  "Bacteria; Pedosphaeraceae"          , "Bacteria; Peptostreptococcaceae"    ,
+  "Bacteria; Pirellulaceae"           ,  "Bacteria; Planococcaceae"           , "Bacteria; Polyangiaceae"            ,
+  "Bacteria; Porphyromonadaceae"      ,  "Bacteria; Prevotellaceae"           , "Bacteria; Propionibacteriaceae"     ,
+  "Bacteria; Pseudomonadaceae"        ,  "Bacteria; Pseudonocardiaceae"       , "Bacteria; Pyrinomonadaceae"         ,
+  "Bacteria; Rhodanobacteraceae"      ,  "Bacteria; Rhodocyclaceae"           , "Bacteria; Rhodothermaceae"          ,
+  "Bacteria; Rikenellaceae"           ,  "Bacteria; Rubinisphaeraceae"        , "Bacteria; Rubrobacteriaceae"        ,
+  "Bacteria; Ruminococcaceae"         ,  "Bacteria; Saccharimonadaceae"       , "Bacteria; Sanguibacteraceae"        ,
+  "Bacteria; SC_I_84"                 ,  "Bacteria; Selenomonadaceae"         , "Bacteria; Solimonadaceae"           ,
+  "Bacteria; Solirubrobacteraceae"    ,  "Bacteria; Sphingobacteriaceae"      , "Bacteria; Spirochaetaceae"          ,
+  "Bacteria; Spirosomaceae"           ,  "Bacteria; Sporichthyaceae"          , "Bacteria; Staphylococcaceae"        ,
+  "Bacteria; Steroidobacteraceae"     ,  "Bacteria; Streptococcaceae"         , "Bacteria; Streptomycetaceae"        ,
+  "Bacteria; Sutterellaceae"          ,  "Bacteria; Synergistaceae"           , "Bacteria; Tannerellaceae"           ,
+  "Bacteria; Terrimicrobiaceae"       ,  "Bacteria; Thermaceae"               , "Bacteria; Thermoactinomycetaceae"   ,
+  "Bacteria; Thermomonosporaceae"     ,  "Bacteria; TRA3_20"                  , "Bacteria; Trueperaceae"             ,
+  "Bacteria; Unc. OTU0030"            ,  "Bacteria; Unc. OTU0031"             , "Bacteria; Unc. OTU0032"             ,
+  "Bacteria; Unc. OTU0034"            ,  "Bacteria; Unc. OTU0042"             , "Bacteria; Unc. OTU0106"             ,
+  "Bacteria; Unc. OTU0107"            ,  "Bacteria; Unc. OTU0115"             , "Bacteria; Unc. OTU0122"             ,
+  "Bacteria; Unc. OTU0152"            ,  "Bacteria; Unc. OTU0375"             , "Bacteria; Unc. OTU0460"             ,
+  "Bacteria; Unc. OTU0463"            ,  "Bacteria; Unc. OTU0472"             , "Bacteria; Unc. OTU0489"             ,
+  "Bacteria; Unc. OTU0491"            ,  "Bacteria; Unc. OTU0514"             , "Bacteria; Unc. OTU0536"             ,
+  "Bacteria; Unc. OTU0742"            ,  "Bacteria; Unc. OTU0744"             , "Bacteria; Unc. OTU0785"             ,
+  "Bacteria; Unc. OTU0964"            ,  "Bacteria; Unc. OTU0965"             , "Bacteria; Unc. OTU0982"             ,
+  "Bacteria; Unc. OTU1104"            ,  "Bacteria; Unc. OTU1110"             , "Bacteria; Unc. OTU1122"             ,
+  "Bacteria; Unc. OTU1127"            ,  "Bacteria; Unc. OTU1128"             , "Bacteria; Unc. OTU1129"             ,
+  "Bacteria; Unc. OTU1132"            ,  "Bacteria; Unc. OTU1134"             , "Bacteria; Unc. OTU1151"             ,
+  "Bacteria; Unc. OTU1166"            ,  "Bacteria; Unc. OTU1183"             , "Bacteria; Unc. OTU1185"             ,
+  "Bacteria; Unc. OTU1186"            ,  "Bacteria; Unc. OTU1198"             , "Bacteria; Unc. OTU1199"             ,
+  "Bacteria; Unc. OTU1223"            ,  "Bacteria; Unc. OTU1224"             , "Bacteria; Unc. OTU1563"             ,
+  "Bacteria; Unc. OTU1587"            ,  "Bacteria; Unc. OTU1599"             , "Bacteria; Unc. OTU1624"             ,
+  "Bacteria; Unc. OTU1796"            ,  "Bacteria; Unc. OTU1797"             , "Bacteria; Unc. OTU1818"             ,
+  "Bacteria; Unc. OTU1822"            ,  "Bacteria; Veillonellaceae"          , "Bacteria; Verrucomicrobiaceae"      ,
+  "Bacteria; Vibrionaceae"            ,  "Bacteria; Vicinamibacteraceae"      , "Bacteria; Weeksellaceae"            ,
+  "Bacteria; Xanthomonadaceae"        ,  "Bacteria; Yersiniaceae"  
+)
+
+# Create an empty workbook
+wb <- createWorkbook()
+
+# Loop through each outcome variable
+for (outcome_var in outcome_vars_binary) {
+  # Results for the current outcome variable
+  Results_Per_Outcome <- lapply(bacterial_family, function(var) {
+    # Prepare the column name with backticks
+    var <- paste0("`", var, "`")
+    
+    # Create the formula dynamically
+    formula <- as.formula(paste(outcome_var, "~", var))
+    
+    # Perform logistic regression
+    res.logist <- glm(formula, data = Family_pre, family = "binomial")
+    
+    # Extract model summary
+    model_summary <- coef(summary(res.logist))
+    type_column <- ifelse(rownames(model_summary) == "(Intercept)", "Intercept", "Family")
+    
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|z|)"]  # Adjust column name if needed
+    
+    # Adjust p-values
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return a data frame
+    data.frame(
+      Outcome = outcome_var,
+      Family = var,
+      Type = type_column,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  })
+  
+  # Combine results for all phyla for the current outcome variable
+  combined_results <- do.call(rbind, Results_Per_Outcome)
+  
+  # Add the results to a new sheet in the workbook
+  addWorksheet(wb, sheetName = outcome_var)
+  writeData(wb, sheet = outcome_var, combined_results)
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "Family_logistic.xlsx", overwrite = TRUE)
+
+
+
+######################################################################################
+
+
+### LINEAR regression using CESD, PCL, ASI, and FAST as outcome variables
+
+
+#Test runs for linear models
+Test_CESD_family_Linear <- lm(CESD ~ `Bacteria; 67_14`, data = Family_pre)
+summary(Test_CESD_family_Linear)
+
+### UPDATE  this code for each level (phyla, class etc.)
+#Use this for making a scatter plot of any significant bacteria phyla
+  #  plot(Family_pre$CESD, Family_pre$`Bacteria; 67_14`, main = "Scatter Plot of CESD v Bacteria",
+  #      xlab= "CESD", ylab="Bacteria",
+  #        pch = 19, col = "blue")
+# abline(Test_CESD_order_Linear, col = "red", lwd = 2)      #This adds regression line to scatter plot
+
+
+#Check for residuals/QQ plot for need of transformation
+#par(mfrow = c(2, 2))
+#plot(Test_CESD_family_Linear)
+
+
+outcome_vars_linear <- c("CESD", "PCL", "ASI", "FAST")
+
+# Create an empty workbook
+wb <- createWorkbook()
+
+# Loop through each outcome variable
+for (outcome_var in outcome_vars_linear) {
+  # Results for the current outcome variable
+  Results_Per_Outcome <- lapply(bacterial_family, function(var) {
+    # Prepare the column name with backticks
+    var <- paste0("`", var, "`")
+    
+    # Create the formula dynamically
+    formula <- as.formula(paste(outcome_var, "~", var))
+    
+    # Perform logistic regression
+    res.lm <- lm(formula, data = Family_pre)
+    
+    # Extract model summary
+    model_summary <- coef(summary(res.lm))
+    type_column <- ifelse(rownames(model_summary) == "(Intercept)", "Intercept", "Family")
+    
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|t|)"]  # Adjust column name if needed
+    
+    # Adjust p-values
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return a data frame
+    data.frame(
+      Outcome = outcome_var,
+      Family = var,
+      Type = type_column,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  })
+  
+  # Combine results for all phyla for the current outcome variable
+  combined_results <- do.call(rbind, Results_Per_Outcome)
+  
+  # Add the results to a new sheet in the workbook
+  addWorksheet(wb, sheetName = outcome_var)
+  writeData(wb, sheet = outcome_var, combined_results)
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "Family_linear.xlsx", overwrite = TRUE)
+
+
+
+############################################################################################
+
+#     Linear mixed model regression for changes between sessions
+
+
+# MAKEM SURE ID variable is factor and update at each level!!!
+#Phylum_analysis$ID <- as.factor(Phylum_analysis$ID)
+
+
+repeated_test_family <- lmer(`Bacteria; 67_14`~ Exposure + (1 | ID), data = Family_analysis)
+summary(repeated_test_family)
+
+
+
+#bacteria ~ Time (Exposure variable (Subject is ID variable, ID is factor)))
+
+
+results_family_LMM <- lapply(c(
+  "Bacteria; 67_14"                   ,  "Bacteria; A4b"                      , "Bacteria; Abditibacteriaceae"       , 
+  "Bacteria; Acidithiobacillaceae"    ,  "Bacteria; Acidothermaceae"          , "Bacteria; Actinomycetaceae"         ,
+  "Bacteria; Aerococcaceae"           ,  "Bacteria; Aeromonadaceae"           , "Bacteria; Akkermansiaceae"          ,
+  "Bacteria; Alcaligenaceae"          ,  "Bacteria; Alcanivoracaceae"         , "Bacteria; Alcanivoracaceae1"        ,
+  "Bacteria; Alicyclobacillaceae"     ,  "Bacteria; Alteromonadaceae"         , "Bacteria; Amoebophilaceae"          ,
+  "Bacteria; Anaerolineaceae"         ,  "Bacteria; Anaerovoracaceae"         , "Bacteria; Atopobiaceae"             ,
+  "Bacteria; Bacillaceae"             ,  "Bacteria; Bacteroidaceae"           , "Bacteria; Bifidobacteriaceae"       ,
+  "Bacteria; Blastocatellaceae"       ,  "Bacteria; Bogoriellaceae"           , "Bacteria; Brevibacillaceae"         ,
+  "Bacteria; Brevibacteriaceae"       ,  "Bacteria; Burkholderiaceae"         , "Bacteria; Butyricicoccaceae"        ,
+  "Bacteria; Caldilineaceae"          ,  "Bacteria; Campylobacteraceae"       , "Bacteria; Cardiobacteriaceae"       ,
+  "Bacteria; Carnobacteriaceae"       ,  "Bacteria; Cellulomonadaceae"        , "Bacteria; Cellvibrionaceae"         ,
+  "Bacteria; Chitinophagaceae"        ,  "Bacteria; Chromobacteriaceae"       , "Bacteria; Chthoniobacteraceae"      ,
+  "Bacteria; Clostridiaceae"          ,  "Bacteria; Comamonadaceae"           , "Bacteria; Coriobacteriaceae"        ,
+  "Bacteria; Corynebacteriaceae"      ,  "Bacteria; Defluviitaleaceae"        , "Bacteria; Deinococcaceae"           ,
+  "Bacteria; Dermabacteraceae"        ,  "Bacteria; Dermacoccaceae"           , "Bacteria; Desulfocapsaceae"         ,
+  "Bacteria; Desulfuromonadaceae"     ,  "Bacteria; Dietziaceae"              , "Bacteria; Diplorickettsiaceae"      ,
+  "Bacteria; Eggerthellaceae"         ,  "Bacteria; Enterobacteriaceae"       , "Bacteria; Enterococcaceae"          ,
+  "Bacteria; Erwiniaceae"             ,  "Bacteria; Erysipelatoclostridiaceae", "Bacteria; Erysipelotrichaceae"      ,
+  "Bacteria; Eubacteriaceae"          ,  "Bacteria; Exiguobacteraceae"        , "Bacteria; Family_XI"                ,
+  "Bacteria; Flavobacteriaceae"       ,  "Bacteria; Frankiaceae"              , "Bacteria; Fusobacteriaceae"         ,
+  "Bacteria; Gaiellaceae"             ,  "Bacteria; Gemellaceae"              , "Bacteria; Gemmatimonadaceae"        ,
+  "Bacteria; Geodermatophilaceae"     ,  "Bacteria; Haliangiaceae"            , "Bacteria; Halomonadaceae"           ,
+  "Bacteria; Helicobacteraceae"       ,  "Bacteria; Hungateiclostridiaceae"   , "Bacteria; Hydrogenophilaceae"       ,
+  "Bacteria; Hymenobacteraceae"       ,  "Bacteria; Iamiaceae"                , "Bacteria; Idiomarinaceae"           ,
+  "Bacteria; Ilumatobacteraceae"      ,  "Bacteria; Intrasporangiaceae"       , "Bacteria; Isosphaeraceae"           ,
+  "Bacteria; Kineosporiaceae"         ,  "Bacteria; Lachnospiraceae"          , "Bacteria; Lactobacillaceae"         ,
+  "Bacteria; Legionellaceae"          ,  "Bacteria; Lentimicrobiaceae"        , "Bacteria; Leptospiraceae"           ,
+  "Bacteria; Leptotrichiaceae"        ,  "Bacteria; Listeriaceae"             , "Bacteria; Methylophilaceae"         ,
+  "Bacteria; Microbacteriaceae"       ,  "Bacteria; Micrococcaceae"           , "Bacteria; Micromonosporaceae"       ,
+  "Bacteria; Microscillaceae"         ,  "Bacteria; Mitochondria"             , "Bacteria; Monoglobaceae"            ,
+  "Bacteria; Moraxellaceae"           ,  "Bacteria; Morganellaceae"           , "Bacteria; Muribaculaceae"           ,
+  "Bacteria; Mycobacteriaceae"        ,  "Bacteria; Mycoplasmataceae"         , "Bacteria; Myxococcaceae"            ,
+  "Bacteria; Nakamurellaceae"         ,  "Bacteria; Neisseriaceae"            , "Bacteria; Nitrosomonadaceae"        ,
+  "Bacteria; Nitrospiraceae"          ,  "Bacteria; Nocardiaceae"             , "Bacteria; Nocardioidaceae"          ,
+  "Bacteria; Nocardiopsaceae"         ,  "Bacteria; NS9_marine"               , "Bacteria; Opitutaceae"              ,
+  "Bacteria; Oxalobacteraceae"        ,  "Bacteria; Paenibacillaceae"         , "Bacteria; Paludibacteraceae"        ,
+  "Bacteria; Pasteurellaceae"         ,  "Bacteria; Pedosphaeraceae"          , "Bacteria; Peptostreptococcaceae"    ,
+  "Bacteria; Pirellulaceae"           ,  "Bacteria; Planococcaceae"           , "Bacteria; Polyangiaceae"            ,
+  "Bacteria; Porphyromonadaceae"      ,  "Bacteria; Prevotellaceae"           , "Bacteria; Propionibacteriaceae"     ,
+  "Bacteria; Pseudomonadaceae"        ,  "Bacteria; Pseudonocardiaceae"       , "Bacteria; Pyrinomonadaceae"         ,
+  "Bacteria; Rhodanobacteraceae"      ,  "Bacteria; Rhodocyclaceae"           , "Bacteria; Rhodothermaceae"          ,
+  "Bacteria; Rikenellaceae"           ,  "Bacteria; Rubinisphaeraceae"        , "Bacteria; Rubrobacteriaceae"        ,
+  "Bacteria; Ruminococcaceae"         ,  "Bacteria; Saccharimonadaceae"       , "Bacteria; Sanguibacteraceae"        ,
+  "Bacteria; SC_I_84"                 ,  "Bacteria; Selenomonadaceae"         , "Bacteria; Solimonadaceae"           ,
+  "Bacteria; Solirubrobacteraceae"    ,  "Bacteria; Sphingobacteriaceae"      , "Bacteria; Spirochaetaceae"          ,
+  "Bacteria; Spirosomaceae"           ,  "Bacteria; Sporichthyaceae"          , "Bacteria; Staphylococcaceae"        ,
+  "Bacteria; Steroidobacteraceae"     ,  "Bacteria; Streptococcaceae"         , "Bacteria; Streptomycetaceae"        ,
+  "Bacteria; Sutterellaceae"          ,  "Bacteria; Synergistaceae"           , "Bacteria; Tannerellaceae"           ,
+  "Bacteria; Terrimicrobiaceae"       ,  "Bacteria; Thermaceae"               , "Bacteria; Thermoactinomycetaceae"   ,
+  "Bacteria; Thermomonosporaceae"     ,  "Bacteria; TRA3_20"                  , "Bacteria; Trueperaceae"             ,
+  "Bacteria; Unc. OTU0030"            ,  "Bacteria; Unc. OTU0031"             , "Bacteria; Unc. OTU0032"             ,
+  "Bacteria; Unc. OTU0034"            ,  "Bacteria; Unc. OTU0042"             , "Bacteria; Unc. OTU0106"             ,
+  "Bacteria; Unc. OTU0107"            ,  "Bacteria; Unc. OTU0115"             , "Bacteria; Unc. OTU0122"             ,
+  "Bacteria; Unc. OTU0152"            ,  "Bacteria; Unc. OTU0375"             , "Bacteria; Unc. OTU0460"             ,
+  "Bacteria; Unc. OTU0463"            ,  "Bacteria; Unc. OTU0472"             , "Bacteria; Unc. OTU0489"             ,
+  "Bacteria; Unc. OTU0491"            ,  "Bacteria; Unc. OTU0514"             , "Bacteria; Unc. OTU0536"             ,
+  "Bacteria; Unc. OTU0742"            ,  "Bacteria; Unc. OTU0744"             , "Bacteria; Unc. OTU0785"             ,
+  "Bacteria; Unc. OTU0964"            ,  "Bacteria; Unc. OTU0965"             , "Bacteria; Unc. OTU0982"             ,
+  "Bacteria; Unc. OTU1104"            ,  "Bacteria; Unc. OTU1110"             , "Bacteria; Unc. OTU1122"             ,
+  "Bacteria; Unc. OTU1127"            ,  "Bacteria; Unc. OTU1128"             , "Bacteria; Unc. OTU1129"             ,
+  "Bacteria; Unc. OTU1132"            ,  "Bacteria; Unc. OTU1134"             , "Bacteria; Unc. OTU1151"             ,
+  "Bacteria; Unc. OTU1166"            ,  "Bacteria; Unc. OTU1183"             , "Bacteria; Unc. OTU1185"             ,
+  "Bacteria; Unc. OTU1186"            ,  "Bacteria; Unc. OTU1198"             , "Bacteria; Unc. OTU1199"             ,
+  "Bacteria; Unc. OTU1223"            ,  "Bacteria; Unc. OTU1224"             , "Bacteria; Unc. OTU1563"             ,
+  "Bacteria; Unc. OTU1587"            ,  "Bacteria; Unc. OTU1599"             , "Bacteria; Unc. OTU1624"             ,
+  "Bacteria; Unc. OTU1796"            ,  "Bacteria; Unc. OTU1797"             , "Bacteria; Unc. OTU1818"             ,
+  "Bacteria; Unc. OTU1822"            ,  "Bacteria; Veillonellaceae"          , "Bacteria; Verrucomicrobiaceae"      ,
+  "Bacteria; Vibrionaceae"            ,  "Bacteria; Vicinamibacteraceae"      , "Bacteria; Weeksellaceae"            ,
+  "Bacteria; Xanthomonadaceae"        ,  "Bacteria; Yersiniaceae" 
+),
+function(var) {
+  var <- paste0("`", var, "`")
+  formula <- as.formula(paste(var, "~ Exposure + (1 | ID)"))
+  res.mixed <- lmer(formula, data = Family_analysis)
+  
+  model_summary <- coef(summary(res.mixed))
+  estimates <- model_summary[, "Estimate"]
+  std_errors <- model_summary[, "Std. Error"]
+  p_values <- model_summary[, "Pr(>|t|)"]
+  
+  p_adjusted_BH <- p.adjust(p_values, method = "BH")
+  p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+  
+  data.frame(
+    Family = var,
+    Estimate = estimates,
+    SE = std_errors,
+    Unadjusted_pvalue = p_values,
+    BH_pvalue = p_adjusted_BH,
+    Bonferroni_pvalue = p_adjusted_Bonf
+  )
+  
+})
+
+results_combined <- do.call(rbind, results_family_LMM)
+
+
+write.csv(results_combined, file = "Family_LMM.csv")
+
+
+####****  This was resulting in errors because of a couple families
+####*so we use trycatch and return null values on problematic families
+
+results_family_LMM <- lapply(c(
+  "Bacteria; 67_14"                   ,  "Bacteria; A4b"                      , "Bacteria; Abditibacteriaceae"       , 
+  "Bacteria; Acidithiobacillaceae"    ,  "Bacteria; Acidothermaceae"          , "Bacteria; Actinomycetaceae"         ,
+  "Bacteria; Aerococcaceae"           ,  "Bacteria; Aeromonadaceae"           , "Bacteria; Akkermansiaceae"          ,
+  "Bacteria; Alcaligenaceae"          ,  "Bacteria; Alcanivoracaceae"         , "Bacteria; Alcanivoracaceae1"        ,
+  "Bacteria; Alicyclobacillaceae"     ,  "Bacteria; Alteromonadaceae"         , "Bacteria; Amoebophilaceae"          ,
+  "Bacteria; Anaerolineaceae"         ,  "Bacteria; Anaerovoracaceae"         , "Bacteria; Atopobiaceae"             ,
+  "Bacteria; Bacillaceae"             ,  "Bacteria; Bacteroidaceae"           , "Bacteria; Bifidobacteriaceae"       ,
+  "Bacteria; Blastocatellaceae"       ,  "Bacteria; Bogoriellaceae"           , "Bacteria; Brevibacillaceae"         ,
+  "Bacteria; Brevibacteriaceae"       ,  "Bacteria; Burkholderiaceae"         , "Bacteria; Butyricicoccaceae"        ,
+  "Bacteria; Caldilineaceae"          ,  "Bacteria; Campylobacteraceae"       , "Bacteria; Cardiobacteriaceae"       ,
+  "Bacteria; Carnobacteriaceae"       ,  "Bacteria; Cellulomonadaceae"        , "Bacteria; Cellvibrionaceae"         ,
+  "Bacteria; Chitinophagaceae"        ,  "Bacteria; Chromobacteriaceae"       , "Bacteria; Chthoniobacteraceae"      ,
+  "Bacteria; Clostridiaceae"          ,  "Bacteria; Comamonadaceae"           , "Bacteria; Coriobacteriaceae"        ,
+  "Bacteria; Corynebacteriaceae"      ,  "Bacteria; Defluviitaleaceae"        , "Bacteria; Deinococcaceae"           ,
+  "Bacteria; Dermabacteraceae"        ,  "Bacteria; Dermacoccaceae"           , "Bacteria; Desulfocapsaceae"         ,
+  "Bacteria; Desulfuromonadaceae"     ,  "Bacteria; Dietziaceae"              , "Bacteria; Diplorickettsiaceae"      ,
+  "Bacteria; Eggerthellaceae"         ,  "Bacteria; Enterobacteriaceae"       , "Bacteria; Enterococcaceae"          ,
+  "Bacteria; Erwiniaceae"             ,  "Bacteria; Erysipelatoclostridiaceae", "Bacteria; Erysipelotrichaceae"      ,
+  "Bacteria; Eubacteriaceae"          ,  "Bacteria; Exiguobacteraceae"        , "Bacteria; Family_XI"                ,
+  "Bacteria; Flavobacteriaceae"       ,  "Bacteria; Frankiaceae"              , "Bacteria; Fusobacteriaceae"         ,
+  "Bacteria; Gaiellaceae"             ,  "Bacteria; Gemellaceae"              , "Bacteria; Gemmatimonadaceae"        ,
+  "Bacteria; Geodermatophilaceae"     ,  "Bacteria; Haliangiaceae"            , "Bacteria; Halomonadaceae"           ,
+  "Bacteria; Helicobacteraceae"       ,  "Bacteria; Hungateiclostridiaceae"   , "Bacteria; Hydrogenophilaceae"       ,
+  "Bacteria; Hymenobacteraceae"       ,  "Bacteria; Iamiaceae"                , "Bacteria; Idiomarinaceae"           ,
+  "Bacteria; Ilumatobacteraceae"      ,  "Bacteria; Intrasporangiaceae"       , "Bacteria; Isosphaeraceae"           ,
+  "Bacteria; Kineosporiaceae"         ,  "Bacteria; Lachnospiraceae"          , "Bacteria; Lactobacillaceae"         ,
+  "Bacteria; Legionellaceae"          ,  "Bacteria; Lentimicrobiaceae"        , "Bacteria; Leptospiraceae"           ,
+  "Bacteria; Leptotrichiaceae"        ,  "Bacteria; Listeriaceae"             , "Bacteria; Methylophilaceae"         ,
+  "Bacteria; Microbacteriaceae"       ,  "Bacteria; Micrococcaceae"           , "Bacteria; Micromonosporaceae"       ,
+  "Bacteria; Microscillaceae"         ,  "Bacteria; Mitochondria"             , "Bacteria; Monoglobaceae"            ,
+  "Bacteria; Moraxellaceae"           ,  "Bacteria; Morganellaceae"           , "Bacteria; Muribaculaceae"           ,
+  "Bacteria; Mycobacteriaceae"        ,  "Bacteria; Mycoplasmataceae"         , "Bacteria; Myxococcaceae"            ,
+  "Bacteria; Nakamurellaceae"         ,  "Bacteria; Neisseriaceae"            , "Bacteria; Nitrosomonadaceae"        ,
+  "Bacteria; Nitrospiraceae"          ,  "Bacteria; Nocardiaceae"             , "Bacteria; Nocardioidaceae"          ,
+  "Bacteria; Nocardiopsaceae"         ,  "Bacteria; NS9_marine"               , "Bacteria; Opitutaceae"              ,
+  "Bacteria; Oxalobacteraceae"        ,  "Bacteria; Paenibacillaceae"         , "Bacteria; Paludibacteraceae"        ,
+  "Bacteria; Pasteurellaceae"         ,  "Bacteria; Pedosphaeraceae"          , "Bacteria; Peptostreptococcaceae"    ,
+  "Bacteria; Pirellulaceae"           ,  "Bacteria; Planococcaceae"           , "Bacteria; Polyangiaceae"            ,
+  "Bacteria; Porphyromonadaceae"      ,  "Bacteria; Prevotellaceae"           , "Bacteria; Propionibacteriaceae"     ,
+  "Bacteria; Pseudomonadaceae"        ,  "Bacteria; Pseudonocardiaceae"       , "Bacteria; Pyrinomonadaceae"         ,
+  "Bacteria; Rhodanobacteraceae"      ,  "Bacteria; Rhodocyclaceae"           , "Bacteria; Rhodothermaceae"          ,
+  "Bacteria; Rikenellaceae"           ,  "Bacteria; Rubinisphaeraceae"        , "Bacteria; Rubrobacteriaceae"        ,
+  "Bacteria; Ruminococcaceae"         ,  "Bacteria; Saccharimonadaceae"       , "Bacteria; Sanguibacteraceae"        ,
+  "Bacteria; SC_I_84"                 ,  "Bacteria; Selenomonadaceae"         , "Bacteria; Solimonadaceae"           ,
+  "Bacteria; Solirubrobacteraceae"    ,  "Bacteria; Sphingobacteriaceae"      , "Bacteria; Spirochaetaceae"          ,
+  "Bacteria; Spirosomaceae"           ,  "Bacteria; Sporichthyaceae"          , "Bacteria; Staphylococcaceae"        ,
+  "Bacteria; Steroidobacteraceae"     ,  "Bacteria; Streptococcaceae"         , "Bacteria; Streptomycetaceae"        ,
+  "Bacteria; Sutterellaceae"          ,  "Bacteria; Synergistaceae"           , "Bacteria; Tannerellaceae"           ,
+  "Bacteria; Terrimicrobiaceae"       ,  "Bacteria; Thermaceae"               , "Bacteria; Thermoactinomycetaceae"   ,
+  "Bacteria; Thermomonosporaceae"     ,  "Bacteria; TRA3_20"                  , "Bacteria; Trueperaceae"             ,
+  "Bacteria; Unc. OTU0030"            ,  "Bacteria; Unc. OTU0031"             , "Bacteria; Unc. OTU0032"             ,
+  "Bacteria; Unc. OTU0034"            ,  "Bacteria; Unc. OTU0042"             , "Bacteria; Unc. OTU0106"             ,
+  "Bacteria; Unc. OTU0107"            ,  "Bacteria; Unc. OTU0115"             , "Bacteria; Unc. OTU0122"             ,
+  "Bacteria; Unc. OTU0152"            ,  "Bacteria; Unc. OTU0375"             , "Bacteria; Unc. OTU0460"             ,
+  "Bacteria; Unc. OTU0463"            ,  "Bacteria; Unc. OTU0472"             , "Bacteria; Unc. OTU0489"             ,
+  "Bacteria; Unc. OTU0491"            ,  "Bacteria; Unc. OTU0514"             , "Bacteria; Unc. OTU0536"             ,
+  "Bacteria; Unc. OTU0742"            ,  "Bacteria; Unc. OTU0744"             , "Bacteria; Unc. OTU0785"             ,
+  "Bacteria; Unc. OTU0964"            ,  "Bacteria; Unc. OTU0965"             , "Bacteria; Unc. OTU0982"             ,
+  "Bacteria; Unc. OTU1104"            ,  "Bacteria; Unc. OTU1110"             , "Bacteria; Unc. OTU1122"             ,
+  "Bacteria; Unc. OTU1127"            ,  "Bacteria; Unc. OTU1128"             , "Bacteria; Unc. OTU1129"             ,
+  "Bacteria; Unc. OTU1132"            ,  "Bacteria; Unc. OTU1134"             , "Bacteria; Unc. OTU1151"             ,
+  "Bacteria; Unc. OTU1166"            ,  "Bacteria; Unc. OTU1183"             , "Bacteria; Unc. OTU1185"             ,
+  "Bacteria; Unc. OTU1186"            ,  "Bacteria; Unc. OTU1198"             , "Bacteria; Unc. OTU1199"             ,
+  "Bacteria; Unc. OTU1223"            ,  "Bacteria; Unc. OTU1224"             , "Bacteria; Unc. OTU1563"             ,
+  "Bacteria; Unc. OTU1587"            ,  "Bacteria; Unc. OTU1599"             , "Bacteria; Unc. OTU1624"             ,
+  "Bacteria; Unc. OTU1796"            ,  "Bacteria; Unc. OTU1797"             , "Bacteria; Unc. OTU1818"             ,
+  "Bacteria; Unc. OTU1822"            ,  "Bacteria; Veillonellaceae"          , "Bacteria; Verrucomicrobiaceae"      ,
+  "Bacteria; Vibrionaceae"            ,  "Bacteria; Vicinamibacteraceae"      , "Bacteria; Weeksellaceae"            ,
+  "Bacteria; Xanthomonadaceae"        ,  "Bacteria; Yersiniaceae" 
+), function(var) {
+  tryCatch({
+    # Wrap your modeling code in tryCatch
+    var <- paste0("`", var, "`")
+    formula <- as.formula(paste(var, "~ Exposure + (1 | ID)"))
+    res.mixed <- lmer(formula, data = Family_analysis)
+    
+    model_summary <- coef(summary(res.mixed))
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|t|)"]
+    
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return results as a data frame
+    data.frame(
+      Family = var,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  }, error = function(e) {
+    # If an error occurs, log the problematic variable and return NULL
+    cat("Error with variable:", var, "\n")
+    NULL
+  })
+})
+
+# Combine results, skipping any NULLs
+results_combined <- do.call(rbind, results_family_LMM)
+
+# Save the results to a CSV file
+write.csv(results_combined, file = "Family_LMM.csv")
+
+
+
+####################################################################
+#####################################################################
+#####################################################################
+
+
+
+#             Using GENUS level dataset
+
+
+
+
+Genus_analysis <- merge(worksheet, GENUS, by = "SampleID", all = FALSE)
+
+Genus_analysis$ID <- as.factor(Genus_analysis$ID)
+
+print(Genus_analysis)
+
+#   Set up datset for loop analyses
+
+#colnames(Genus_analysis)
+
+sapply(Genus_analysis, class)
+cols.num <- c(
+  "Bacteria; Abditibacterium"                           ,
+  "Bacteria; Abiotrophia"                               , "Bacteria; Acidibacter"                 ,    
+  "Bacteria; Acidothermus"                              , "Bacteria; Acidovorax"                  ,   
+  "Bacteria; Acinetobacter"                             , "Bacteria; Actinomadura"                ,  
+  "Bacteria; Actinomyces"                               , "Bacteria; Actinomycetospora"           , 
+  "Bacteria; Aerococcus"                                , "Bacteria; Aeromicrobium"               ,   
+  "Bacteria; Aeromonas"                                 , "Bacteria; Agathobacter"                ,      
+  "Bacteria; Aggregatibacter"                           , "Bacteria; Agitococcus_lubricus"        ,     
+  "Bacteria; Agrococcus"                                , "Bacteria; Agromyces"                   ,      
+  "Bacteria; Akkermansia"                               , "Bacteria; Alcaligenes"                 ,      
+  "Bacteria; Alcanivorax"                               , "Bacteria; Aliicoccus"                  ,      
+  "Bacteria; Aliidiomarina"                             , "Bacteria; Alkalibacterium"             ,      
+  "Bacteria; Alkanindiges"                              , "Bacteria; Allobaculum"                 ,      
+  "Bacteria; Alloiococcus"                              , "Bacteria; Alloprevotella"              ,      
+  "Bacteria; Amnibacterium"                             , "Bacteria; Anaerococcus"                ,     
+  "Bacteria; Aquabacterium"                             , "Bacteria; Arenimonas"                  ,      
+  "Bacteria; Aridibacter"                               , "Bacteria; Arthrobacter"                ,      
+  "Bacteria; Atopobium"                                 , "Bacteria; Atopostipes"                 ,     
+  "Bacteria; Auricoccus_Abyssicoccus"                   , "Bacteria; Azoarcus"                    ,     
+  "Bacteria; Bacillus"                                  , "Bacteria; Bacteroides"                 ,      
+  "Bacteria; Bergeyella"                                , "Bacteria; Bifidobacterium"             ,      
+  "Bacteria; Blastocatella"                             , "Bacteria; Blastococcus"                ,      
+  "Bacteria; Blautia"                                   , "Bacteria; Brachybacterium"             ,     
+  "Bacteria; Brevibacillus"                             , "Bacteria; Brevibacterium"              ,     
+  "Bacteria; Brochothrix"                               , "Bacteria; Buchnera"                    ,      
+  "Bacteria; Burkholderia_Caballeronia_Paraburkholderia", "Bacteria; Butyricicoccus"              ,      
+  "Bacteria; Butyrivibrio"                              , "Bacteria; Campylobacter"               ,      
+  "Bacteria; Candidatus_Cardinium"                      , "Bacteria; Candidatus_Saccharimonas"    ,              
+  "Bacteria; Capnocytophaga"                            , "Bacteria; Cardiobacterium"             ,              
+  "Bacteria; Carnobacterium"                            , "Bacteria; Catenibacterium"             ,              
+  "Bacteria; Catonella"                                 , "Bacteria; Cellulomonas"                ,              
+  "Bacteria; Cellulosilyticum"                          , "Bacteria; Cellvibrio"                  ,              
+  "Bacteria; Chiayiivirga"                              , "Bacteria; Chitinophaga"                ,              
+  "Bacteria; Chromohalobacter"                          , "Bacteria; Chryseobacterium"            ,              
+  "Bacteria; Chryseomicrobium"                          , "Bacteria; Chthoniobacter"              ,              
+  "Bacteria; Citricoccus"                               , "Bacteria; Citrobacter"                 ,              
+  "Bacteria; CL500_29_marine"                           , "Bacteria; Cloacibacterium"             ,              
+  "Bacteria; Clostridium_sensu_stricto_1"               , "Bacteria; Clostridium_sensu_stricto_18",              
+  "Bacteria; Clostridium_sensu_stricto_7"               , "Bacteria; Cnuella"                     ,              
+  "Bacteria; Cohnella"                                  , "Bacteria; Collinsella"                 ,              
+  "Bacteria; Comamonas"                                 , "Bacteria; Conexibacter"                ,              
+  "Bacteria; Coprococcus"                               , "Bacteria; Corynebacterium"             ,              
+  "Bacteria; Cupriavidus"                               , "Bacteria; Curtobacterium"              ,              
+  "Bacteria; Curvibacter"                               , "Bacteria; Cutibacterium"               ,              
+  "Bacteria; Defluviitaleaceae_UCG_011"                 , "Bacteria; Deinococcus"                 ,              
+  "Bacteria; Delftia"                                   , "Bacteria; Denitratisoma"               ,              
+  "Bacteria; Dermabacter"                               , "Bacteria; Dermacoccus"                 ,              
+  "Bacteria; Desemzia"                                  , "Bacteria; Dialister"                   ,              
+  "Bacteria; Diaphorobacter"                            , "Bacteria; Dietzia"                     ,              
+  "Bacteria; Dokdonella"                                , "Bacteria; Dolosigranulum"              ,              
+  "Bacteria; Domibacillus"                              , "Bacteria; Dubosiella"                  ,              
+  "Bacteria; Dyadobacter"                               , "Bacteria; Eggerthella"                 ,              
+  "Bacteria; Eisenbergiella"                            , "Bacteria; Ellin517"                    ,              
+  "Bacteria; Ellin6067"                                 , "Bacteria; Empedobacter"                ,              
+  "Bacteria; Enhydrobacter"                             , "Bacteria; Enterococcus"                ,              
+  "Bacteria; Erysipelatoclostridium"                    , "Bacteria; Erysipelothrix"              ,              
+  "Bacteria; Erysipelotrichaceae_UCG_006"               , "Bacteria; Erysipelotrichaceae_UCG_007" ,              
+  "Bacteria; Escherichia_Shigella"                      , "Bacteria; Eubacterium"                 ,              
+  "Bacteria; Eubacterium_brachy"                        , "Bacteria; Eubacterium_nodatum"         ,             
+  "Bacteria; Eubacterium_siraeum"                       , "Bacteria; Eubacterium_yurii"           ,              
+  "Bacteria; Exiguobacterium"                           , "Bacteria; Ezakiella"                   ,              
+  "Bacteria; F0058"                                     , "Bacteria; F0332"                       ,              
+  "Bacteria; Facklamia"                                 , "Bacteria; Faecalibacterium"            ,              
+  "Bacteria; Faecalibaculum"                            , "Bacteria; Fastidiosipila"              ,              
+  "Bacteria; Fenollaria"                                , "Bacteria; Ferruginibacter"             ,              
+  "Bacteria; Filifactor"                                , "Bacteria; Finegoldia"                  ,              
+  "Bacteria; Flaviaesturariibacter"                     , "Bacteria; Flavisolibacter"             ,              
+  "Bacteria; Flavitalea"                                , "Bacteria; Flavobacterium"              ,              
+  "Bacteria; Fretibacterium"                            , "Bacteria; Friedmanniella"              ,              
+  "Bacteria; Fusicatenibacter"                          , "Bacteria; Fusobacterium"               ,              
+  "Bacteria; Gaiella"                                   , "Bacteria; Gallicola"                   ,              
+  "Bacteria; Gardnerella"                               , "Bacteria; Gemella"                     ,              
+  "Bacteria; Gemmatimonas"                              , "Bacteria; Geobacillus"                 ,              
+  "Bacteria; Geodermatophilus"                          , "Bacteria; Georgenia"                   ,              
+  "Bacteria; Gordonia"                                  , "Bacteria; Granulicatella"              ,              
+  "Bacteria; Haemophilus"                               , "Bacteria; Haliangium"                  ,              
+  "Bacteria; Halomonas"                                 , "Bacteria; Hassallia"                   ,              
+  "Bacteria; Helcococcus"                               , "Bacteria; Holdemanella"                ,              
+  "Bacteria; Hydrocarboniphaga"                         , "Bacteria; Hydrogenophilus"             ,              
+  "Bacteria; Hydrotalea"                                , "Bacteria; Hymenobacter"                ,              
+  "Bacteria; Iamia"                                     , "Bacteria; Ideonella"                   ,              
+  "Bacteria; Ileibacterium"                             , "Bacteria; Ilumatobacter"               ,              
+  "Bacteria; Janibacter"                                , "Bacteria; Jatrophihabitans"            ,              
+  "Bacteria; Jeotgalicoccus"                            , "Bacteria; JGI_0001001_H03"             ,              
+  "Bacteria; Johnsonella"                               , "Bacteria; KCM_B_112"                   ,              
+  "Bacteria; Ketobacter"                                , "Bacteria; Kineosporia"                 ,              
+  "Bacteria; Kingella"                                  , "Bacteria; Klebsiella"                  ,              
+  "Bacteria; Klenkia"                                   , "Bacteria; Knoellia"                    ,              
+  "Bacteria; Kocuria"                                   , "Bacteria; Krasilnikovia"               ,              
+  "Bacteria; Kurthia"                                   , "Bacteria; Kytococcus"                  ,              
+  "Bacteria; Laceyella"                                 , "Bacteria; Lachnoanaerobaculum"         ,              
+  "Bacteria; Lachnoclostridium"                         , "Bacteria; Lachnospiraceae_ND3007"      ,              
+  "Bacteria; Lachnospiraceae_NK4A136"                   , "Bacteria; Lachnospiraceae_UCG_004"     ,              
+  "Bacteria; Lacibacter"                                , "Bacteria; Lactiplantibacillus"         ,              
+  "Bacteria; Lactobacillus"                             , "Bacteria; Lactococcus"                 ,              
+  "Bacteria; Lacunisphaera"                             , "Bacteria; Latilactobacillus"           ,              
+  "Bacteria; Lautropia"                                 , "Bacteria; Lawsonella"                  ,             
+  "Bacteria; Legionella"                                , "Bacteria; Lentimicrobium"              ,              
+  "Bacteria; Leptospira"                                , "Bacteria; Leptotrichia"                ,              
+  "Bacteria; Leucobacter"                               , "Bacteria; Leuconostoc"                 ,              
+  "Bacteria; Ligilactobacillus"                         , "Bacteria; Limnobacter"                 ,              
+  "Bacteria; Limosilactobacillus"                       , "Bacteria; Luteimonas"                  ,              
+  "Bacteria; Lysinibacillus"                            , "Bacteria; Lysobacter"                  ,             
+  "Bacteria; Macellibacteroides"                        , "Bacteria; Macrococcus"                 ,              
+  "Bacteria; Marisediminicola"                          , "Bacteria; Marmoricola"                 ,              
+  "Bacteria; Massilia"                                  , "Bacteria; Megamonas"                   ,              
+  "Bacteria; Meiothermus"                               , "Bacteria; Methylotenera"               ,              
+  "Bacteria; Microbacterium"                            , "Bacteria; Microcella"                  ,              
+  "Bacteria; Micrococcus"                               , "Bacteria; Microlunatus"                ,              
+  "Bacteria; Micropruina"                               , "Bacteria; Modestobacter"               ,              
+  "Bacteria; Mogibacterium"                             , "Bacteria; Moheibacter"                 ,              
+  "Bacteria; Monoglobus"                                , "Bacteria; Moraxella"                   ,              
+  "Bacteria; Mucilaginibacter"                          , "Bacteria; Murdochiella"                ,              
+  "Bacteria; Mycobacterium"                             , "Bacteria; Mycoplasma"                  ,              
+  "Bacteria; Myxococcus"                                , "Bacteria; Nakamurella"                 ,              
+  "Bacteria; Negativicoccus"                            , "Bacteria; Neisseria"                   ,              
+  "Bacteria; Nesterenkonia"                             , "Bacteria; Nevskia"                     ,              
+  "Bacteria; Nitrospira"                                , "Bacteria; Nocardia"                    ,              
+  "Bacteria; Nocardioides"                              , "Bacteria; Nocardiopsis"                ,              
+  "Bacteria; Noviherbaspirillum"                        , "Bacteria; Nubsella"                    ,              
+  "Bacteria; Ohtaekwangia"                              , "Bacteria; OLB13"                       ,              
+  "Bacteria; Oribacterium"                              , "Bacteria; Ornithinibacter"             ,              
+  "Bacteria; Ornithinimicrobium"                        , "Bacteria; Ottowia"                     ,              
+  "Bacteria; P3OB_42"                                   , "Bacteria; Paenibacillus"               ,              
+  "Bacteria; Pajaroellobacter"                          , "Bacteria; Panacagrimonas"              ,              
+  "Bacteria; Pantoea"                                   , "Bacteria; Parabacteroides"             ,              
+  "Bacteria; Parapusillimonas"                          , "Bacteria; Parvimonas"                  ,              
+  "Bacteria; Parviterribacter"                          , "Bacteria; Pediococcus"                 ,              
+  "Bacteria; Pelomonas"                                 , "Bacteria; Peptoanaerobacter"           ,              
+  "Bacteria; Peptoclostridium"                          , "Bacteria; Peptoniphilus"               ,              
+  "Bacteria; Peptostreptococcus"                        , "Bacteria; Perlucidibaca"               ,              
+  "Bacteria; Photobacterium"                            , "Bacteria; Pir4_lineage"                ,              
+  "Bacteria; Pirellula"                                 , "Bacteria; Planococcus"                 ,              
+  "Bacteria; Planomicrobium"                            , "Bacteria; Pontibacter"                 ,              
+  "Bacteria; Porphyromonas"                             , "Bacteria; Prevotella"                  ,              
+  "Bacteria; Prevotella_7"                              , "Bacteria; Prevotella_9"                ,              
+  "Bacteria; Prevotellaceae_NK3B31"                     , "Bacteria; Pseudarthrobacter"           ,              
+  "Bacteria; Pseudogulbenkiania"                        , "Bacteria; Pseudokineococcus"           ,              
+  "Bacteria; Pseudomonas"                               , "Bacteria; Pseudonocardia"              ,              
+  "Bacteria; Pseudopropionibacterium"                   , "Bacteria; Pseudosphingobacterium"      ,              
+  "Bacteria; Pseudoxanthomonas"                         , "Bacteria; Psychrobacter"               ,              
+  "Bacteria; Puia"                                      , "Bacteria; Quadrisphaera"               ,              
+  "Bacteria; Rahnella1"                                 , "Bacteria; Ramlibacter"                 ,              
+  "Bacteria; Rathayibacter"                             , "Bacteria; RB41"                        ,              
+  "Bacteria; Rheinheimera"                              , "Bacteria; Rhizobacter"                 ,              
+  "Bacteria; Rhodococcus"                               , "Bacteria; Rickettsiella"               ,             
+  "Bacteria; Rikenellaceae_RC9_gut"                     , "Bacteria; Roseburia"                   ,              
+  "Bacteria; Roseisolibacter"                           , "Bacteria; Rothia"                      ,              
+  "Bacteria; Rubrobacter"                               , "Bacteria; Rufibacter"                  ,              
+  "Bacteria; Ruminococcus"                              , "Bacteria; Ruminococcus_gauvreauii"     ,              
+  "Bacteria; Rurimicrobium"                             , "Bacteria; Saccharopolyspora"           ,              
+  "Bacteria; Salinibacter"                              , "Bacteria; Salinicoccus"                ,              
+  "Bacteria; Salinicola"                                , "Bacteria; Sanguibacter_Flavimobilis"   ,              
+  "Bacteria; Savagea"                                   , "Bacteria; Segetibacter"                ,              
+  "Bacteria; Selenomonas"                               , "Bacteria; Serratia"                    ,              
+  "Bacteria; SH_PL14"                                   , "Bacteria; Shuttleworthia"              ,              
+  "Bacteria; Simonsiella"                               , "Bacteria; Singulisphaera"              ,              
+  "Bacteria; Slackia"                                   , "Bacteria; Solibacillus"                ,              
+  "Bacteria; Solirubrobacter"                           , "Bacteria; Sorangium"                   ,              
+  "Bacteria; Sphaerochaeta"                             , "Bacteria; Sphingobacterium"            ,              
+  "Bacteria; Spirosoma"                                 , "Bacteria; Sporosarcina"                ,              
+  "Bacteria; Staphylococcus"                            , "Bacteria; Stenotrophobacter"           ,              
+  "Bacteria; Stenotrophomonas"                          , "Bacteria; Stomatobaculum"              ,              
+  "Bacteria; Streptococcus"                             , "Bacteria; Streptomyces"                ,              
+  "Bacteria; Subdoligranulum"                           , "Bacteria; Sulfuritalea"                ,              
+  "Bacteria; Sutterella"                                , "Bacteria; Tannerella"                  ,              
+  "Bacteria; Tepidimonas"                               , "Bacteria; Terrimicrobium"              ,              
+  "Bacteria; Terrisporobacter"                          , "Bacteria; Tessaracoccus"               ,              
+  "Bacteria; Tetragenococcus"                           , "Bacteria; Tetrasphaera"                ,              
+  "Bacteria; Thermomonas"                               , "Bacteria; Thermus"                     ,              
+  "Bacteria; Timonella"                                 , "Bacteria; Tissierella"                 ,              
+  "Bacteria; TM7a"                                      , "Bacteria; TM7x"                        ,              
+  "Bacteria; Treponema"                                 , "Bacteria; Trichococcus"                ,              
+  "Bacteria; Truepera"                                  , "Bacteria; Tumebacillus"                ,              
+  "Bacteria; Turicella"                                 , "Bacteria; Turicibacter"                ,              
+  "Bacteria; Turneriella"                               , "Bacteria; Unc. OTU0004"                ,              
+  "Bacteria; Unc. OTU0030"                              , "Bacteria; Unc. OTU0031"                ,              
+  "Bacteria; Unc. OTU0032"                              , "Bacteria; Unc. OTU0034"                ,              
+  "Bacteria; Unc. OTU0042"                              , "Bacteria; Unc. OTU0045"                ,              
+  "Bacteria; Unc. OTU0047"                              , "Bacteria; Unc. OTU0097"                ,              
+  "Bacteria; Unc. OTU0098"                              , "Bacteria; Unc. OTU0099"                ,              
+  "Bacteria; Unc. OTU0103"                              , "Bacteria; Unc. OTU0104"                ,              
+  "Bacteria; Unc. OTU0106"                              , "Bacteria; Unc. OTU0107"                ,              
+  "Bacteria; Unc. OTU0111"                              , "Bacteria; Unc. OTU0115"                ,              
+  "Bacteria; Unc. OTU0118"                              , "Bacteria; Unc. OTU0119"                ,              
+  "Bacteria; Unc. OTU0121"                              , "Bacteria; Unc. OTU0122"                ,              
+  "Bacteria; Unc. OTU0134"                              , "Bacteria; Unc. OTU0152"                ,              
+  "Bacteria; Unc. OTU0173"                              , "Bacteria; Unc. OTU0264"                ,              
+  "Bacteria; Unc. OTU0327"                              , "Bacteria; Unc. OTU0344"                ,              
+  "Bacteria; Unc. OTU0367"                              , "Bacteria; Unc. OTU0375"                ,              
+  "Bacteria; Unc. OTU0378"                              , "Bacteria; Unc. OTU0399"                ,              
+  "Bacteria; Unc. OTU0446"                              , "Bacteria; Unc. OTU0459"                ,              
+  "Bacteria; Unc. OTU0463"                              , "Bacteria; Unc. OTU0489"                ,              
+  "Bacteria; Unc. OTU0491"                              , "Bacteria; Unc. OTU0514"                ,              
+  "Bacteria; Unc. OTU0536"                              , "Bacteria; Unc. OTU0568"                ,              
+  "Bacteria; Unc. OTU0569"                              , "Bacteria; Unc. OTU0596"                ,              
+  "Bacteria; Unc. OTU0597"                              , "Bacteria; Unc. OTU0598"                ,              
+  "Bacteria; Unc. OTU0616"                              , "Bacteria; Unc. OTU0651"                ,              
+  "Bacteria; Unc. OTU0742"                              , "Bacteria; Unc. OTU0744"                ,              
+  "Bacteria; Unc. OTU0856"                              , "Bacteria; Unc. OTU0870"                ,              
+  "Bacteria; Unc. OTU0886"                              , "Bacteria; Unc. OTU0918"                ,              
+  "Bacteria; Unc. OTU0964"                              , "Bacteria; Unc. OTU0965"                ,              
+  "Bacteria; Unc. OTU0982"                              , "Bacteria; Unc. OTU1049"                ,              
+  "Bacteria; Unc. OTU1059"                              , "Bacteria; Unc. OTU1080"                ,              
+  "Bacteria; Unc. OTU1088"                              , "Bacteria; Unc. OTU1090"                ,              
+  "Bacteria; Unc. OTU1104"                              , "Bacteria; Unc. OTU1110"                ,              
+  "Bacteria; Unc. OTU1122"                              , "Bacteria; Unc. OTU1127"                ,              
+  "Bacteria; Unc. OTU1128"                              , "Bacteria; Unc. OTU1129"                ,              
+  "Bacteria; Unc. OTU1132"                              , "Bacteria; Unc. OTU1134"                ,              
+  "Bacteria; Unc. OTU1151"                              , "Bacteria; Unc. OTU1166"                ,              
+  "Bacteria; Unc. OTU1183"                              , "Bacteria; Unc. OTU1185"                ,              
+  "Bacteria; Unc. OTU1186"                              , "Bacteria; Unc. OTU1198"                ,              
+  "Bacteria; Unc. OTU1199"                              , "Bacteria; Unc. OTU1223"                ,              
+  "Bacteria; Unc. OTU1224"                              , "Bacteria; Unc. OTU1229"                ,              
+  "Bacteria; Unc. OTU1293"                              , "Bacteria; Unc. OTU1398"                ,              
+  "Bacteria; Unc. OTU1407"                              , "Bacteria; Unc. OTU1468"                ,              
+  "Bacteria; Unc. OTU1478"                              , "Bacteria; Unc. OTU1482"                ,              
+  "Bacteria; Unc. OTU1563"                              , "Bacteria; Unc. OTU1587"                ,              
+  "Bacteria; Unc. OTU1599"                              , "Bacteria; Unc. OTU1623"                ,              
+  "Bacteria; Unc. OTU1624"                              , "Bacteria; Unc. OTU1632"                ,              
+  "Bacteria; Unc. OTU1637"                              , "Bacteria; Unc. OTU1638"                ,              
+  "Bacteria; Unc. OTU1639"                              , "Bacteria; Unc. OTU1648"                ,              
+  "Bacteria; Unc. OTU1705"                              , "Bacteria; Unc. OTU1738"                ,              
+  "Bacteria; Unc. OTU1754"                              , "Bacteria; Unc. OTU1762"                ,              
+  "Bacteria; Unc. OTU1796"                              , "Bacteria; Unc. OTU1797"                ,              
+  "Bacteria; Unc. OTU1818"                              , "Bacteria; Unc. OTU1822"                ,              
+  "Bacteria; Ureaplasma"                                , "Bacteria; Varibaculum"                 ,              
+  "Bacteria; Variovorax"                                , "Bacteria; Veillonella"                 ,              
+  "Bacteria; Verrucomicrobium"                          , "Bacteria; Vibrio"                      ,              
+  "Bacteria; Williamsia"                                , "Bacteria; Wolinella"                   ,              
+  "Bacteria; Yaniella"                                  , "Bacteria; Yersinia"                    ,              
+  "Bacteria; Yonghaparkia"  
+)
+Genus_analysis[cols.num] <- sapply(Genus_analysis[cols.num], as.numeric)
+sapply(Genus_analysis, class)
+
+
+
+
+
+#         Subset data to only include baseline for subjects for general associations
+Genus_pre <- Genus_analysis[Genus_analysis$Exposure == "Pre", ]
+
+############################################
+
+############################################
+
+#### LOGISTIC regression analyses for CESD, PCL, and ASI against all Genus
+
+
+Test_CESD_genus_logistic <- glm(CESD_bi~ `Bacteria; Abditibacterium`, data = Genus_pre, family = "binomial")
+summary(Test_CESD_genus_logistic)
+
+# List of outcome variables
+outcome_vars_binary <- c("CESD_bi", "PCL_bi", "ASI_bi")
+
+# List of bacterial Genus
+bacterial_genus <- c(
+  "Bacteria; Abditibacterium"                           ,
+  "Bacteria; Abiotrophia"                               , "Bacteria; Acidibacter"                 ,    
+  "Bacteria; Acidothermus"                              , "Bacteria; Acidovorax"                  ,   
+  "Bacteria; Acinetobacter"                             , "Bacteria; Actinomadura"                ,  
+  "Bacteria; Actinomyces"                               , "Bacteria; Actinomycetospora"           , 
+  "Bacteria; Aerococcus"                                , "Bacteria; Aeromicrobium"               ,   
+  "Bacteria; Aeromonas"                                 , "Bacteria; Agathobacter"                ,      
+  "Bacteria; Aggregatibacter"                           , "Bacteria; Agitococcus_lubricus"        ,     
+  "Bacteria; Agrococcus"                                , "Bacteria; Agromyces"                   ,      
+  "Bacteria; Akkermansia"                               , "Bacteria; Alcaligenes"                 ,      
+  "Bacteria; Alcanivorax"                               , "Bacteria; Aliicoccus"                  ,      
+  "Bacteria; Aliidiomarina"                             , "Bacteria; Alkalibacterium"             ,      
+  "Bacteria; Alkanindiges"                              , "Bacteria; Allobaculum"                 ,      
+  "Bacteria; Alloiococcus"                              , "Bacteria; Alloprevotella"              ,      
+  "Bacteria; Amnibacterium"                             , "Bacteria; Anaerococcus"                ,     
+  "Bacteria; Aquabacterium"                             , "Bacteria; Arenimonas"                  ,      
+  "Bacteria; Aridibacter"                               , "Bacteria; Arthrobacter"                ,      
+  "Bacteria; Atopobium"                                 , "Bacteria; Atopostipes"                 ,     
+  "Bacteria; Auricoccus_Abyssicoccus"                   , "Bacteria; Azoarcus"                    ,     
+  "Bacteria; Bacillus"                                  , "Bacteria; Bacteroides"                 ,      
+  "Bacteria; Bergeyella"                                , "Bacteria; Bifidobacterium"             ,      
+  "Bacteria; Blastocatella"                             , "Bacteria; Blastococcus"                ,      
+  "Bacteria; Blautia"                                   , "Bacteria; Brachybacterium"             ,     
+  "Bacteria; Brevibacillus"                             , "Bacteria; Brevibacterium"              ,     
+  "Bacteria; Brochothrix"                               , "Bacteria; Buchnera"                    ,      
+  "Bacteria; Burkholderia_Caballeronia_Paraburkholderia", "Bacteria; Butyricicoccus"              ,      
+  "Bacteria; Butyrivibrio"                              , "Bacteria; Campylobacter"               ,      
+  "Bacteria; Candidatus_Cardinium"                      , "Bacteria; Candidatus_Saccharimonas"    ,              
+  "Bacteria; Capnocytophaga"                            , "Bacteria; Cardiobacterium"             ,              
+  "Bacteria; Carnobacterium"                            , "Bacteria; Catenibacterium"             ,              
+  "Bacteria; Catonella"                                 , "Bacteria; Cellulomonas"                ,              
+  "Bacteria; Cellulosilyticum"                          , "Bacteria; Cellvibrio"                  ,              
+  "Bacteria; Chiayiivirga"                              , "Bacteria; Chitinophaga"                ,              
+  "Bacteria; Chromohalobacter"                          , "Bacteria; Chryseobacterium"            ,              
+  "Bacteria; Chryseomicrobium"                          , "Bacteria; Chthoniobacter"              ,              
+  "Bacteria; Citricoccus"                               , "Bacteria; Citrobacter"                 ,              
+  "Bacteria; CL500_29_marine"                           , "Bacteria; Cloacibacterium"             ,              
+  "Bacteria; Clostridium_sensu_stricto_1"               , "Bacteria; Clostridium_sensu_stricto_18",              
+  "Bacteria; Clostridium_sensu_stricto_7"               , "Bacteria; Cnuella"                     ,              
+  "Bacteria; Cohnella"                                  , "Bacteria; Collinsella"                 ,              
+  "Bacteria; Comamonas"                                 , "Bacteria; Conexibacter"                ,              
+  "Bacteria; Coprococcus"                               , "Bacteria; Corynebacterium"             ,              
+  "Bacteria; Cupriavidus"                               , "Bacteria; Curtobacterium"              ,              
+  "Bacteria; Curvibacter"                               , "Bacteria; Cutibacterium"               ,              
+  "Bacteria; Defluviitaleaceae_UCG_011"                 , "Bacteria; Deinococcus"                 ,              
+  "Bacteria; Delftia"                                   , "Bacteria; Denitratisoma"               ,              
+  "Bacteria; Dermabacter"                               , "Bacteria; Dermacoccus"                 ,              
+  "Bacteria; Desemzia"                                  , "Bacteria; Dialister"                   ,              
+  "Bacteria; Diaphorobacter"                            , "Bacteria; Dietzia"                     ,              
+  "Bacteria; Dokdonella"                                , "Bacteria; Dolosigranulum"              ,              
+  "Bacteria; Domibacillus"                              , "Bacteria; Dubosiella"                  ,              
+  "Bacteria; Dyadobacter"                               , "Bacteria; Eggerthella"                 ,              
+  "Bacteria; Eisenbergiella"                            , "Bacteria; Ellin517"                    ,              
+  "Bacteria; Ellin6067"                                 , "Bacteria; Empedobacter"                ,              
+  "Bacteria; Enhydrobacter"                             , "Bacteria; Enterococcus"                ,              
+  "Bacteria; Erysipelatoclostridium"                    , "Bacteria; Erysipelothrix"              ,              
+  "Bacteria; Erysipelotrichaceae_UCG_006"               , "Bacteria; Erysipelotrichaceae_UCG_007" ,              
+  "Bacteria; Escherichia_Shigella"                      , "Bacteria; Eubacterium"                 ,              
+  "Bacteria; Eubacterium_brachy"                        , "Bacteria; Eubacterium_nodatum"         ,             
+  "Bacteria; Eubacterium_siraeum"                       , "Bacteria; Eubacterium_yurii"           ,              
+  "Bacteria; Exiguobacterium"                           , "Bacteria; Ezakiella"                   ,              
+  "Bacteria; F0058"                                     , "Bacteria; F0332"                       ,              
+  "Bacteria; Facklamia"                                 , "Bacteria; Faecalibacterium"            ,              
+  "Bacteria; Faecalibaculum"                            , "Bacteria; Fastidiosipila"              ,              
+  "Bacteria; Fenollaria"                                , "Bacteria; Ferruginibacter"             ,              
+  "Bacteria; Filifactor"                                , "Bacteria; Finegoldia"                  ,              
+  "Bacteria; Flaviaesturariibacter"                     , "Bacteria; Flavisolibacter"             ,              
+  "Bacteria; Flavitalea"                                , "Bacteria; Flavobacterium"              ,              
+  "Bacteria; Fretibacterium"                            , "Bacteria; Friedmanniella"              ,              
+  "Bacteria; Fusicatenibacter"                          , "Bacteria; Fusobacterium"               ,              
+  "Bacteria; Gaiella"                                   , "Bacteria; Gallicola"                   ,              
+  "Bacteria; Gardnerella"                               , "Bacteria; Gemella"                     ,              
+  "Bacteria; Gemmatimonas"                              , "Bacteria; Geobacillus"                 ,              
+  "Bacteria; Geodermatophilus"                          , "Bacteria; Georgenia"                   ,              
+  "Bacteria; Gordonia"                                  , "Bacteria; Granulicatella"              ,              
+  "Bacteria; Haemophilus"                               , "Bacteria; Haliangium"                  ,              
+  "Bacteria; Halomonas"                                 , "Bacteria; Hassallia"                   ,              
+  "Bacteria; Helcococcus"                               , "Bacteria; Holdemanella"                ,              
+  "Bacteria; Hydrocarboniphaga"                         , "Bacteria; Hydrogenophilus"             ,              
+  "Bacteria; Hydrotalea"                                , "Bacteria; Hymenobacter"                ,              
+  "Bacteria; Iamia"                                     , "Bacteria; Ideonella"                   ,              
+  "Bacteria; Ileibacterium"                             , "Bacteria; Ilumatobacter"               ,              
+  "Bacteria; Janibacter"                                , "Bacteria; Jatrophihabitans"            ,              
+  "Bacteria; Jeotgalicoccus"                            , "Bacteria; JGI_0001001_H03"             ,              
+  "Bacteria; Johnsonella"                               , "Bacteria; KCM_B_112"                   ,              
+  "Bacteria; Ketobacter"                                , "Bacteria; Kineosporia"                 ,              
+  "Bacteria; Kingella"                                  , "Bacteria; Klebsiella"                  ,              
+  "Bacteria; Klenkia"                                   , "Bacteria; Knoellia"                    ,              
+  "Bacteria; Kocuria"                                   , "Bacteria; Krasilnikovia"               ,              
+  "Bacteria; Kurthia"                                   , "Bacteria; Kytococcus"                  ,              
+  "Bacteria; Laceyella"                                 , "Bacteria; Lachnoanaerobaculum"         ,              
+  "Bacteria; Lachnoclostridium"                         , "Bacteria; Lachnospiraceae_ND3007"      ,              
+  "Bacteria; Lachnospiraceae_NK4A136"                   , "Bacteria; Lachnospiraceae_UCG_004"     ,              
+  "Bacteria; Lacibacter"                                , "Bacteria; Lactiplantibacillus"         ,              
+  "Bacteria; Lactobacillus"                             , "Bacteria; Lactococcus"                 ,              
+  "Bacteria; Lacunisphaera"                             , "Bacteria; Latilactobacillus"           ,              
+  "Bacteria; Lautropia"                                 , "Bacteria; Lawsonella"                  ,             
+  "Bacteria; Legionella"                                , "Bacteria; Lentimicrobium"              ,              
+  "Bacteria; Leptospira"                                , "Bacteria; Leptotrichia"                ,              
+  "Bacteria; Leucobacter"                               , "Bacteria; Leuconostoc"                 ,              
+  "Bacteria; Ligilactobacillus"                         , "Bacteria; Limnobacter"                 ,              
+  "Bacteria; Limosilactobacillus"                       , "Bacteria; Luteimonas"                  ,              
+  "Bacteria; Lysinibacillus"                            , "Bacteria; Lysobacter"                  ,             
+  "Bacteria; Macellibacteroides"                        , "Bacteria; Macrococcus"                 ,              
+  "Bacteria; Marisediminicola"                          , "Bacteria; Marmoricola"                 ,              
+  "Bacteria; Massilia"                                  , "Bacteria; Megamonas"                   ,              
+  "Bacteria; Meiothermus"                               , "Bacteria; Methylotenera"               ,              
+  "Bacteria; Microbacterium"                            , "Bacteria; Microcella"                  ,              
+  "Bacteria; Micrococcus"                               , "Bacteria; Microlunatus"                ,              
+  "Bacteria; Micropruina"                               , "Bacteria; Modestobacter"               ,              
+  "Bacteria; Mogibacterium"                             , "Bacteria; Moheibacter"                 ,              
+  "Bacteria; Monoglobus"                                , "Bacteria; Moraxella"                   ,              
+  "Bacteria; Mucilaginibacter"                          , "Bacteria; Murdochiella"                ,              
+  "Bacteria; Mycobacterium"                             , "Bacteria; Mycoplasma"                  ,              
+  "Bacteria; Myxococcus"                                , "Bacteria; Nakamurella"                 ,              
+  "Bacteria; Negativicoccus"                            , "Bacteria; Neisseria"                   ,              
+  "Bacteria; Nesterenkonia"                             , "Bacteria; Nevskia"                     ,              
+  "Bacteria; Nitrospira"                                , "Bacteria; Nocardia"                    ,              
+  "Bacteria; Nocardioides"                              , "Bacteria; Nocardiopsis"                ,              
+  "Bacteria; Noviherbaspirillum"                        , "Bacteria; Nubsella"                    ,              
+  "Bacteria; Ohtaekwangia"                              , "Bacteria; OLB13"                       ,              
+  "Bacteria; Oribacterium"                              , "Bacteria; Ornithinibacter"             ,              
+  "Bacteria; Ornithinimicrobium"                        , "Bacteria; Ottowia"                     ,              
+  "Bacteria; P3OB_42"                                   , "Bacteria; Paenibacillus"               ,              
+  "Bacteria; Pajaroellobacter"                          , "Bacteria; Panacagrimonas"              ,              
+  "Bacteria; Pantoea"                                   , "Bacteria; Parabacteroides"             ,              
+  "Bacteria; Parapusillimonas"                          , "Bacteria; Parvimonas"                  ,              
+  "Bacteria; Parviterribacter"                          , "Bacteria; Pediococcus"                 ,              
+  "Bacteria; Pelomonas"                                 , "Bacteria; Peptoanaerobacter"           ,              
+  "Bacteria; Peptoclostridium"                          , "Bacteria; Peptoniphilus"               ,              
+  "Bacteria; Peptostreptococcus"                        , "Bacteria; Perlucidibaca"               ,              
+  "Bacteria; Photobacterium"                            , "Bacteria; Pir4_lineage"                ,              
+  "Bacteria; Pirellula"                                 , "Bacteria; Planococcus"                 ,              
+  "Bacteria; Planomicrobium"                            , "Bacteria; Pontibacter"                 ,              
+  "Bacteria; Porphyromonas"                             , "Bacteria; Prevotella"                  ,              
+  "Bacteria; Prevotella_7"                              , "Bacteria; Prevotella_9"                ,              
+  "Bacteria; Prevotellaceae_NK3B31"                     , "Bacteria; Pseudarthrobacter"           ,              
+  "Bacteria; Pseudogulbenkiania"                        , "Bacteria; Pseudokineococcus"           ,              
+  "Bacteria; Pseudomonas"                               , "Bacteria; Pseudonocardia"              ,              
+  "Bacteria; Pseudopropionibacterium"                   , "Bacteria; Pseudosphingobacterium"      ,              
+  "Bacteria; Pseudoxanthomonas"                         , "Bacteria; Psychrobacter"               ,              
+  "Bacteria; Puia"                                      , "Bacteria; Quadrisphaera"               ,              
+  "Bacteria; Rahnella1"                                 , "Bacteria; Ramlibacter"                 ,              
+  "Bacteria; Rathayibacter"                             , "Bacteria; RB41"                        ,              
+  "Bacteria; Rheinheimera"                              , "Bacteria; Rhizobacter"                 ,              
+  "Bacteria; Rhodococcus"                               , "Bacteria; Rickettsiella"               ,             
+  "Bacteria; Rikenellaceae_RC9_gut"                     , "Bacteria; Roseburia"                   ,              
+  "Bacteria; Roseisolibacter"                           , "Bacteria; Rothia"                      ,              
+  "Bacteria; Rubrobacter"                               , "Bacteria; Rufibacter"                  ,              
+  "Bacteria; Ruminococcus"                              , "Bacteria; Ruminococcus_gauvreauii"     ,              
+  "Bacteria; Rurimicrobium"                             , "Bacteria; Saccharopolyspora"           ,              
+  "Bacteria; Salinibacter"                              , "Bacteria; Salinicoccus"                ,              
+  "Bacteria; Salinicola"                                , "Bacteria; Sanguibacter_Flavimobilis"   ,              
+  "Bacteria; Savagea"                                   , "Bacteria; Segetibacter"                ,              
+  "Bacteria; Selenomonas"                               , "Bacteria; Serratia"                    ,              
+  "Bacteria; SH_PL14"                                   , "Bacteria; Shuttleworthia"              ,              
+  "Bacteria; Simonsiella"                               , "Bacteria; Singulisphaera"              ,              
+  "Bacteria; Slackia"                                   , "Bacteria; Solibacillus"                ,              
+  "Bacteria; Solirubrobacter"                           , "Bacteria; Sorangium"                   ,              
+  "Bacteria; Sphaerochaeta"                             , "Bacteria; Sphingobacterium"            ,              
+  "Bacteria; Spirosoma"                                 , "Bacteria; Sporosarcina"                ,              
+  "Bacteria; Staphylococcus"                            , "Bacteria; Stenotrophobacter"           ,              
+  "Bacteria; Stenotrophomonas"                          , "Bacteria; Stomatobaculum"              ,              
+  "Bacteria; Streptococcus"                             , "Bacteria; Streptomyces"                ,              
+  "Bacteria; Subdoligranulum"                           , "Bacteria; Sulfuritalea"                ,              
+  "Bacteria; Sutterella"                                , "Bacteria; Tannerella"                  ,              
+  "Bacteria; Tepidimonas"                               , "Bacteria; Terrimicrobium"              ,              
+  "Bacteria; Terrisporobacter"                          , "Bacteria; Tessaracoccus"               ,              
+  "Bacteria; Tetragenococcus"                           , "Bacteria; Tetrasphaera"                ,              
+  "Bacteria; Thermomonas"                               , "Bacteria; Thermus"                     ,              
+  "Bacteria; Timonella"                                 , "Bacteria; Tissierella"                 ,              
+  "Bacteria; TM7a"                                      , "Bacteria; TM7x"                        ,              
+  "Bacteria; Treponema"                                 , "Bacteria; Trichococcus"                ,              
+  "Bacteria; Truepera"                                  , "Bacteria; Tumebacillus"                ,              
+  "Bacteria; Turicella"                                 , "Bacteria; Turicibacter"                ,              
+  "Bacteria; Turneriella"                               , "Bacteria; Unc. OTU0004"                ,              
+  "Bacteria; Unc. OTU0030"                              , "Bacteria; Unc. OTU0031"                ,              
+  "Bacteria; Unc. OTU0032"                              , "Bacteria; Unc. OTU0034"                ,              
+  "Bacteria; Unc. OTU0042"                              , "Bacteria; Unc. OTU0045"                ,              
+  "Bacteria; Unc. OTU0047"                              , "Bacteria; Unc. OTU0097"                ,              
+  "Bacteria; Unc. OTU0098"                              , "Bacteria; Unc. OTU0099"                ,              
+  "Bacteria; Unc. OTU0103"                              , "Bacteria; Unc. OTU0104"                ,              
+  "Bacteria; Unc. OTU0106"                              , "Bacteria; Unc. OTU0107"                ,              
+  "Bacteria; Unc. OTU0111"                              , "Bacteria; Unc. OTU0115"                ,              
+  "Bacteria; Unc. OTU0118"                              , "Bacteria; Unc. OTU0119"                ,              
+  "Bacteria; Unc. OTU0121"                              , "Bacteria; Unc. OTU0122"                ,              
+  "Bacteria; Unc. OTU0134"                              , "Bacteria; Unc. OTU0152"                ,              
+  "Bacteria; Unc. OTU0173"                              , "Bacteria; Unc. OTU0264"                ,              
+  "Bacteria; Unc. OTU0327"                              , "Bacteria; Unc. OTU0344"                ,              
+  "Bacteria; Unc. OTU0367"                              , "Bacteria; Unc. OTU0375"                ,              
+  "Bacteria; Unc. OTU0378"                              , "Bacteria; Unc. OTU0399"                ,              
+  "Bacteria; Unc. OTU0446"                              , "Bacteria; Unc. OTU0459"                ,              
+  "Bacteria; Unc. OTU0463"                              , "Bacteria; Unc. OTU0489"                ,              
+  "Bacteria; Unc. OTU0491"                              , "Bacteria; Unc. OTU0514"                ,              
+  "Bacteria; Unc. OTU0536"                              , "Bacteria; Unc. OTU0568"                ,              
+  "Bacteria; Unc. OTU0569"                              , "Bacteria; Unc. OTU0596"                ,              
+  "Bacteria; Unc. OTU0597"                              , "Bacteria; Unc. OTU0598"                ,              
+  "Bacteria; Unc. OTU0616"                              , "Bacteria; Unc. OTU0651"                ,              
+  "Bacteria; Unc. OTU0742"                              , "Bacteria; Unc. OTU0744"                ,              
+  "Bacteria; Unc. OTU0856"                              , "Bacteria; Unc. OTU0870"                ,              
+  "Bacteria; Unc. OTU0886"                              , "Bacteria; Unc. OTU0918"                ,              
+  "Bacteria; Unc. OTU0964"                              , "Bacteria; Unc. OTU0965"                ,              
+  "Bacteria; Unc. OTU0982"                              , "Bacteria; Unc. OTU1049"                ,              
+  "Bacteria; Unc. OTU1059"                              , "Bacteria; Unc. OTU1080"                ,              
+  "Bacteria; Unc. OTU1088"                              , "Bacteria; Unc. OTU1090"                ,              
+  "Bacteria; Unc. OTU1104"                              , "Bacteria; Unc. OTU1110"                ,              
+  "Bacteria; Unc. OTU1122"                              , "Bacteria; Unc. OTU1127"                ,              
+  "Bacteria; Unc. OTU1128"                              , "Bacteria; Unc. OTU1129"                ,              
+  "Bacteria; Unc. OTU1132"                              , "Bacteria; Unc. OTU1134"                ,              
+  "Bacteria; Unc. OTU1151"                              , "Bacteria; Unc. OTU1166"                ,              
+  "Bacteria; Unc. OTU1183"                              , "Bacteria; Unc. OTU1185"                ,              
+  "Bacteria; Unc. OTU1186"                              , "Bacteria; Unc. OTU1198"                ,              
+  "Bacteria; Unc. OTU1199"                              , "Bacteria; Unc. OTU1223"                ,              
+  "Bacteria; Unc. OTU1224"                              , "Bacteria; Unc. OTU1229"                ,              
+  "Bacteria; Unc. OTU1293"                              , "Bacteria; Unc. OTU1398"                ,              
+  "Bacteria; Unc. OTU1407"                              , "Bacteria; Unc. OTU1468"                ,              
+  "Bacteria; Unc. OTU1478"                              , "Bacteria; Unc. OTU1482"                ,              
+  "Bacteria; Unc. OTU1563"                              , "Bacteria; Unc. OTU1587"                ,              
+  "Bacteria; Unc. OTU1599"                              , "Bacteria; Unc. OTU1623"                ,              
+  "Bacteria; Unc. OTU1624"                              , "Bacteria; Unc. OTU1632"                ,              
+  "Bacteria; Unc. OTU1637"                              , "Bacteria; Unc. OTU1638"                ,              
+  "Bacteria; Unc. OTU1639"                              , "Bacteria; Unc. OTU1648"                ,              
+  "Bacteria; Unc. OTU1705"                              , "Bacteria; Unc. OTU1738"                ,              
+  "Bacteria; Unc. OTU1754"                              , "Bacteria; Unc. OTU1762"                ,              
+  "Bacteria; Unc. OTU1796"                              , "Bacteria; Unc. OTU1797"                ,              
+  "Bacteria; Unc. OTU1818"                              , "Bacteria; Unc. OTU1822"                ,              
+  "Bacteria; Ureaplasma"                                , "Bacteria; Varibaculum"                 ,              
+  "Bacteria; Variovorax"                                , "Bacteria; Veillonella"                 ,              
+  "Bacteria; Verrucomicrobium"                          , "Bacteria; Vibrio"                      ,              
+  "Bacteria; Williamsia"                                , "Bacteria; Wolinella"                   ,              
+  "Bacteria; Yaniella"                                  , "Bacteria; Yersinia"                    ,              
+  "Bacteria; Yonghaparkia"  
+)
+
+# Create an empty workbook
+wb <- createWorkbook()
+
+# Loop through each outcome variable
+for (outcome_var in outcome_vars_binary) {
+  # Results for the current outcome variable
+  Results_Per_Outcome <- lapply(bacterial_genus, function(var) {
+    # Prepare the column name with backticks
+    var <- paste0("`", var, "`")
+    
+    # Create the formula dynamically
+    formula <- as.formula(paste(outcome_var, "~", var))
+    
+    # Perform logistic regression
+    res.logist <- glm(formula, data = Genus_pre, family = "binomial")
+    
+    # Extract model summary
+    model_summary <- coef(summary(res.logist))
+    type_column <- ifelse(rownames(model_summary) == "(Intercept)", "Intercept", "Genus")
+    
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|z|)"]  # Adjust column name if needed
+    
+    # Adjust p-values
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return a data frame
+    data.frame(
+      Outcome = outcome_var,
+      Genus = var,
+      Type = type_column,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  })
+  
+  # Combine results for all phyla for the current outcome variable
+  combined_results <- do.call(rbind, Results_Per_Outcome)
+  
+  # Add the results to a new sheet in the workbook
+  addWorksheet(wb, sheetName = outcome_var)
+  writeData(wb, sheet = outcome_var, combined_results)
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "Genus_logistic.xlsx", overwrite = TRUE)
+
+unadj_log_PCL <- glm(PCL_bi ~ `Bacteria; Hydrotalea`, data = Genus_pre, family = "binomial")
+summary(unadj_log_PCL)
+confint(unadj_log_PCL)
+
+adj_log_PCL <- glm(PCL_bi ~ `Bacteria; Hydrotalea` + AGE + Serve_years, data = Genus_pre, family = "binomial")
+summary(adj_log_PCL)
+confint(adj_log_PCL)
+
+
+unadj_log_ASI <- glm(ASI_bi ~ `Bacteria; Ruminococcus`, data = Genus_pre, family = "binomial")
+summary(unadj_log_ASI)
+confint(unadj_log_ASI)
+
+
+adj_log_ASI <- glm(ASI_bi ~ `Bacteria; Ruminococcus` + AGE + Serve_years, data = Genus_pre, family = "binomial")
+summary(adj_log_ASI)
+confint(adj_log_ASI)
+
+
+######################################################################################
+
+
+### LINEAR regression using CESD, PCL, ASI, and FAST as outcome variables
+
+
+#Test runs for linear models
+Test_CESD_genus_Linear <- lm(CESD ~ `Bacteria; Abditibacterium`, data = Genus_pre)
+summary(Test_CESD_genus_Linear)
+
+### UPDATE  this code for each level (phyla, class etc.)
+#Use this for making a scatter plot of any significant bacteria phyla
+#  plot(Genus_pre$CESD, Genus_pre$`Bacteria; Abditibacterium`, main = "Scatter Plot of CESD v Bacteria",
+#      xlab= "CESD", ylab="Bacteria",
+#        pch = 19, col = "blue")
+# abline(Test_CESD_genus_Linear, col = "red", lwd = 2)      #This adds regression line to scatter plot
+
+
+#Check for residuals/QQ plot for need of transformation
+#par(mfrow = c(2, 2))
+#plot(Test_CESD_genus_Linear)
+
+
+outcome_vars_linear <- c("CESD", "PCL", "ASI", "FAST")
+
+# Create an empty workbook
+wb <- createWorkbook()
+
+# Loop through each outcome variable
+for (outcome_var in outcome_vars_linear) {
+  # Results for the current outcome variable
+  Results_Per_Outcome <- lapply(bacterial_genus, function(var) {
+    # Prepare the column name with backticks
+    var <- paste0("`", var, "`")
+    
+    # Create the formula dynamically
+    formula <- as.formula(paste(outcome_var, "~", var))
+    
+    # Perform logistic regression
+    res.lm <- lm(formula, data = Genus_pre)
+    
+    # Extract model summary
+    model_summary <- coef(summary(res.lm))
+    type_column <- ifelse(rownames(model_summary) == "(Intercept)", "Intercept", "Genus")
+    
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|t|)"]  # Adjust column name if needed
+    
+    # Adjust p-values
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return a data frame
+    data.frame(
+      Outcome = outcome_var,
+      Genus = var,
+      Type = type_column,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  })
+  
+  # Combine results for all phyla for the current outcome variable
+  combined_results <- do.call(rbind, Results_Per_Outcome)
+  
+  # Add the results to a new sheet in the workbook
+  addWorksheet(wb, sheetName = outcome_var)
+  writeData(wb, sheet = outcome_var, combined_results)
+}
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "Genus_linear.xlsx", overwrite = TRUE)
+
+
+#####       Checking Linear assumption for significant genus CESD
+
+
+# Create a list of bacteria column names
+genus_list_CESD <- c("Bacteria; Aerococcus", "Bacteria; Chryseomicrobium", 
+                     "Bacteria; Cupriavidus", "Bacteria; Dermabacter", 
+                     "Bacteria; Exiguobacterium", "Bacteria; Ruminococcus")
+
+# Initialize a list to store Shapiro-Wilk test results
+results <- list()
+
+# Loop through each bacteria and perform the normality check
+for (genus in genus_list_CESD) {
+  # Fit the linear model
+  model <- lm(CESD ~ Genus_pre[[genus]], data = Genus_pre)
+  
+  # Extract residuals and run Shapiro-Wilk test
+  shapiro_result <- shapiro.test(residuals(model))
+  
+  # Store the result in the list
+  results[[genus]] <- shapiro_result
+}
+
+# Print the Shapiro-Wilk results for each bacteria
+results
+
+
+#####################################     Checking unadjusted and adjusted estimates for CESD linear
+
+      #UNADJUSTED
+# Initialize a dataframe to store results
+results <- data.frame(Genus = character(),
+                      Estimate = numeric(),
+                      CI_Lower = numeric(),
+                      CI_Upper = numeric(),
+                      P_Value = numeric(),
+                      stringsAsFactors = FALSE)
+
+# Loop through each genus and fit the unadjusted model
+for (genus in genus_list_CESD) {
+  # Fit the linear regression model with Age and BMI as covariates
+  model <- lm(CESD ~ Genus_pre[[genus]], data = Genus_pre)
+  
+  # Extract the coefficient, confidence intervals, and p-value for the genus
+  coef_summary <- summary(model)$coefficients
+  ci <- confint(model)  # Confidence intervals
+  
+  # Append results for the genus to the results dataframe
+  results <- rbind(results, data.frame(
+    Genus = genus,
+    Estimate = coef_summary[2, 1],  # Coefficient for the genus
+    CI_Lower = ci[2, 1],            # Lower bound of the CI
+    CI_Upper = ci[2, 2],            # Upper bound of the CI
+    P_Value = coef_summary[2, 4]    # P-value for the genus
+  ))
+}
+
+# View the summary table
+print(results)
+
+      #ADJUSTED
+# Initialize a dataframe to store results
+results <- data.frame(Genus = character(),
+                      Estimate = numeric(),
+                      CI_Lower = numeric(),
+                      CI_Upper = numeric(),
+                      P_Value = numeric(),
+                      stringsAsFactors = FALSE)
+
+# Loop through each genus and fit the adjusted model
+for (genus in genus_list_CESD) {
+  # Fit the linear regression model with Age and BMI as covariates
+  model <- lm(CESD ~ Genus_pre[[genus]] + AGE + Serve_years, data = Genus_pre)
+  
+  # Extract the coefficient, confidence intervals, and p-value for the genus
+  coef_summary <- summary(model)$coefficients
+  ci <- confint(model)  # Confidence intervals
+  
+  # Append results for the genus to the results dataframe
+  results <- rbind(results, data.frame(
+    Genus = genus,
+    Estimate = coef_summary[2, 1],  # Coefficient for the genus
+    CI_Lower = ci[2, 1],            # Lower bound of the CI
+    CI_Upper = ci[2, 2],            # Upper bound of the CI
+    P_Value = coef_summary[2, 4]    # P-value for the genus
+  ))
+}
+
+# View the summary table
+print(results)
+
+
+
+#####       Checking Linear assumption for significant genus PCL
+
+
+genus_list_PCL <- c("`Bacteria; Citrobacter`", "`Bacteria; Dermabacter`")
+
+pclone <- lm(PCL~`Bacteria; Citrobacter`, data = Genus_pre)
+shapiro.test(residuals(pclone))
+
+pcltwo <- lm(PCL~`Bacteria; Dermabacter`, data = Genus_pre)
+shapiro.test(residuals(pcltwo))
+
+
+#Log transforming didnt work, o needed to square root transform
+
+
+pcl_root <- Genus_pre
+
+pcl_root$PCL <- sqrt(pcl_root$PCL)
+
+pcloneroot <-lm(PCL~`Bacteria; Citrobacter`, data = pcl_root)
+shapiro.test(residuals(pcloneroot))
+
+pcltworoot <- lm(PCL~`Bacteria; Dermabacter`, data = pcl_root)
+shapiro.test(residuals(pcltworoot))
+
+#UNADJUSTED
+
+unadj_root_pcl <- lm(PCL ~ `Bacteria; Citrobacter`, data = pcl_root)
+summary(unadj_root_pcl)
+confint(unadj_root_pcl)
+
+unadj_root_pcl_two <- lm(PCL ~ `Bacteria; Dermabacter` , data = pcl_root)
+summary(unadj_root_pcl_two)
+confint(unadj_root_pcl_two)
+
+
+#Adjusted
+
+adj_root_pcl <- lm(PCL ~ `Bacteria; Citrobacter`+ AGE+Serve_years, data = pcl_root)
+summary(adj_root_pcl)
+confint(adj_root_pcl)
+
+adj_root_pcl_two <- lm(PCL ~ `Bacteria; Dermabacter`+ AGE+ Serve_years , data = pcl_root)
+summary(adj_root_pcl_two)
+confint(adj_root_pcl_two)
+
+
+
+#####       Checking Linear assumption for significant genus ASI
+
+
+ASIone <- lm(ASI ~ `Bacteria; CL500_29_marine`, data = Genus_pre)
+shapiro.test(residuals(ASIone))
+
+ASItwo <- lm(ASI ~ `Bacteria; Parabacteroides`, data = Genus_pre)
+shapiro.test(residuals(ASItwo))
+
+ASI_root <- Genus_pre
+
+ASI_root$ASI <- sqrt(ASI_root$ASI)
+
+
+asione_root <- lm(ASI ~ `Bacteria; CL500_29_marine`, data = ASI_root)
+shapiro.test(residuals(asione_root))
+
+asitwo_root <- lm(ASI ~ `Bacteria; Parabacteroides`, data = ASI_root)
+shapiro.test(residuals(asitwo_root))
+
+#Unadjusted
+
+unadj_root_asi <- lm(ASI ~ `Bacteria; CL500_29_marine`, data = ASI_root)
+summary(unadj_root_asi)
+confint(unadj_root_asi)
+
+unadj_root_asi_two <- lm(ASI ~ `Bacteria; Parabacteroides`, data = ASI_root)
+summary(unadj_root_asi_two)
+confint(unadj_root_asi_two)
+
+# Adjusted
+
+adj_root_asi <- lm(ASI ~ `Bacteria; CL500_29_marine`+ AGE + Serve_years, data = ASI_root)
+summary(adj_root_asi)
+confint(adj_root_asi)
+
+adj_root_asi_two <- lm(ASI ~ `Bacteria; Parabacteroides` + AGE+ Serve_years, data = ASI_root)
+summary(adj_root_asi_two)
+confint(adj_root_asi_two)
+
+############################################################################################
+
+#     Linear mixed model regression for changes between sessions
+
+
+# MAKEM SURE ID variable is factor and update at each level!!!
+#Phylum_analysis$ID <- as.factor(Phylum_analysis$ID)
+
+
+repeated_test_genus <- lmer(`Bacteria; Abditibacterium`~ Exposure + (1 | ID), data = Genus_analysis)
+summary(repeated_test_genus)
+
+
+
+#bacteria ~ Time (Exposure variable (Subject is ID variable, ID is factor)))
+
+
+results_genus_LMM <- lapply(c(
+  "Bacteria; Abditibacterium"                           ,
+  "Bacteria; Abiotrophia"                               , "Bacteria; Acidibacter"                 ,    
+  "Bacteria; Acidothermus"                              , "Bacteria; Acidovorax"                  ,   
+  "Bacteria; Acinetobacter"                             , "Bacteria; Actinomadura"                ,  
+  "Bacteria; Actinomyces"                               , "Bacteria; Actinomycetospora"           , 
+  "Bacteria; Aerococcus"                                , "Bacteria; Aeromicrobium"               ,   
+  "Bacteria; Aeromonas"                                 , "Bacteria; Agathobacter"                ,      
+  "Bacteria; Aggregatibacter"                           , "Bacteria; Agitococcus_lubricus"        ,     
+  "Bacteria; Agrococcus"                                , "Bacteria; Agromyces"                   ,      
+  "Bacteria; Akkermansia"                               , "Bacteria; Alcaligenes"                 ,      
+  "Bacteria; Alcanivorax"                               , "Bacteria; Aliicoccus"                  ,      
+  "Bacteria; Aliidiomarina"                             , "Bacteria; Alkalibacterium"             ,      
+  "Bacteria; Alkanindiges"                              , "Bacteria; Allobaculum"                 ,      
+  "Bacteria; Alloiococcus"                              , "Bacteria; Alloprevotella"              ,      
+  "Bacteria; Amnibacterium"                             , "Bacteria; Anaerococcus"                ,     
+  "Bacteria; Aquabacterium"                             , "Bacteria; Arenimonas"                  ,      
+  "Bacteria; Aridibacter"                               , "Bacteria; Arthrobacter"                ,      
+  "Bacteria; Atopobium"                                 , "Bacteria; Atopostipes"                 ,     
+  "Bacteria; Auricoccus_Abyssicoccus"                   , "Bacteria; Azoarcus"                    ,     
+  "Bacteria; Bacillus"                                  , "Bacteria; Bacteroides"                 ,      
+  "Bacteria; Bergeyella"                                , "Bacteria; Bifidobacterium"             ,      
+  "Bacteria; Blastocatella"                             , "Bacteria; Blastococcus"                ,      
+  "Bacteria; Blautia"                                   , "Bacteria; Brachybacterium"             ,     
+  "Bacteria; Brevibacillus"                             , "Bacteria; Brevibacterium"              ,     
+  "Bacteria; Brochothrix"                               , "Bacteria; Buchnera"                    ,      
+  "Bacteria; Burkholderia_Caballeronia_Paraburkholderia", "Bacteria; Butyricicoccus"              ,      
+  "Bacteria; Butyrivibrio"                              , "Bacteria; Campylobacter"               ,      
+  "Bacteria; Candidatus_Cardinium"                      , "Bacteria; Candidatus_Saccharimonas"    ,              
+  "Bacteria; Capnocytophaga"                            , "Bacteria; Cardiobacterium"             ,              
+  "Bacteria; Carnobacterium"                            , "Bacteria; Catenibacterium"             ,              
+  "Bacteria; Catonella"                                 , "Bacteria; Cellulomonas"                ,              
+  "Bacteria; Cellulosilyticum"                          , "Bacteria; Cellvibrio"                  ,              
+  "Bacteria; Chiayiivirga"                              , "Bacteria; Chitinophaga"                ,              
+  "Bacteria; Chromohalobacter"                          , "Bacteria; Chryseobacterium"            ,              
+  "Bacteria; Chryseomicrobium"                          , "Bacteria; Chthoniobacter"              ,              
+  "Bacteria; Citricoccus"                               , "Bacteria; Citrobacter"                 ,              
+  "Bacteria; CL500_29_marine"                           , "Bacteria; Cloacibacterium"             ,              
+  "Bacteria; Clostridium_sensu_stricto_1"               , "Bacteria; Clostridium_sensu_stricto_18",              
+  "Bacteria; Clostridium_sensu_stricto_7"               , "Bacteria; Cnuella"                     ,              
+  "Bacteria; Cohnella"                                  , "Bacteria; Collinsella"                 ,              
+  "Bacteria; Comamonas"                                 , "Bacteria; Conexibacter"                ,              
+  "Bacteria; Coprococcus"                               , "Bacteria; Corynebacterium"             ,              
+  "Bacteria; Cupriavidus"                               , "Bacteria; Curtobacterium"              ,              
+  "Bacteria; Curvibacter"                               , "Bacteria; Cutibacterium"               ,              
+  "Bacteria; Defluviitaleaceae_UCG_011"                 , "Bacteria; Deinococcus"                 ,              
+  "Bacteria; Delftia"                                   , "Bacteria; Denitratisoma"               ,              
+  "Bacteria; Dermabacter"                               , "Bacteria; Dermacoccus"                 ,              
+  "Bacteria; Desemzia"                                  , "Bacteria; Dialister"                   ,              
+  "Bacteria; Diaphorobacter"                            , "Bacteria; Dietzia"                     ,              
+  "Bacteria; Dokdonella"                                , "Bacteria; Dolosigranulum"              ,              
+  "Bacteria; Domibacillus"                              , "Bacteria; Dubosiella"                  ,              
+  "Bacteria; Dyadobacter"                               , "Bacteria; Eggerthella"                 ,              
+  "Bacteria; Eisenbergiella"                            , "Bacteria; Ellin517"                    ,              
+  "Bacteria; Ellin6067"                                 , "Bacteria; Empedobacter"                ,              
+  "Bacteria; Enhydrobacter"                             , "Bacteria; Enterococcus"                ,              
+  "Bacteria; Erysipelatoclostridium"                    , "Bacteria; Erysipelothrix"              ,              
+  "Bacteria; Erysipelotrichaceae_UCG_006"               , "Bacteria; Erysipelotrichaceae_UCG_007" ,              
+  "Bacteria; Escherichia_Shigella"                      , "Bacteria; Eubacterium"                 ,              
+  "Bacteria; Eubacterium_brachy"                        , "Bacteria; Eubacterium_nodatum"         ,             
+  "Bacteria; Eubacterium_siraeum"                       , "Bacteria; Eubacterium_yurii"           ,              
+  "Bacteria; Exiguobacterium"                           , "Bacteria; Ezakiella"                   ,              
+  "Bacteria; F0058"                                     , "Bacteria; F0332"                       ,              
+  "Bacteria; Facklamia"                                 , "Bacteria; Faecalibacterium"            ,              
+  "Bacteria; Faecalibaculum"                            , "Bacteria; Fastidiosipila"              ,              
+  "Bacteria; Fenollaria"                                , "Bacteria; Ferruginibacter"             ,              
+  "Bacteria; Filifactor"                                , "Bacteria; Finegoldia"                  ,              
+  "Bacteria; Flaviaesturariibacter"                     , "Bacteria; Flavisolibacter"             ,              
+  "Bacteria; Flavitalea"                                , "Bacteria; Flavobacterium"              ,              
+  "Bacteria; Fretibacterium"                            , "Bacteria; Friedmanniella"              ,              
+  "Bacteria; Fusicatenibacter"                          , "Bacteria; Fusobacterium"               ,              
+  "Bacteria; Gaiella"                                   , "Bacteria; Gallicola"                   ,              
+  "Bacteria; Gardnerella"                               , "Bacteria; Gemella"                     ,              
+  "Bacteria; Gemmatimonas"                              , "Bacteria; Geobacillus"                 ,              
+  "Bacteria; Geodermatophilus"                          , "Bacteria; Georgenia"                   ,              
+  "Bacteria; Gordonia"                                  , "Bacteria; Granulicatella"              ,              
+  "Bacteria; Haemophilus"                               , "Bacteria; Haliangium"                  ,              
+  "Bacteria; Halomonas"                                 , "Bacteria; Hassallia"                   ,              
+  "Bacteria; Helcococcus"                               , "Bacteria; Holdemanella"                ,              
+  "Bacteria; Hydrocarboniphaga"                         , "Bacteria; Hydrogenophilus"             ,              
+  "Bacteria; Hydrotalea"                                , "Bacteria; Hymenobacter"                ,              
+  "Bacteria; Iamia"                                     , "Bacteria; Ideonella"                   ,              
+  "Bacteria; Ileibacterium"                             , "Bacteria; Ilumatobacter"               ,              
+  "Bacteria; Janibacter"                                , "Bacteria; Jatrophihabitans"            ,              
+  "Bacteria; Jeotgalicoccus"                            , "Bacteria; JGI_0001001_H03"             ,              
+  "Bacteria; Johnsonella"                               , "Bacteria; KCM_B_112"                   ,              
+  "Bacteria; Ketobacter"                                , "Bacteria; Kineosporia"                 ,              
+  "Bacteria; Kingella"                                  , "Bacteria; Klebsiella"                  ,              
+  "Bacteria; Klenkia"                                   , "Bacteria; Knoellia"                    ,              
+  "Bacteria; Kocuria"                                   , "Bacteria; Krasilnikovia"               ,              
+  "Bacteria; Kurthia"                                   , "Bacteria; Kytococcus"                  ,              
+  "Bacteria; Laceyella"                                 , "Bacteria; Lachnoanaerobaculum"         ,              
+  "Bacteria; Lachnoclostridium"                         , "Bacteria; Lachnospiraceae_ND3007"      ,              
+  "Bacteria; Lachnospiraceae_NK4A136"                   , "Bacteria; Lachnospiraceae_UCG_004"     ,              
+  "Bacteria; Lacibacter"                                , "Bacteria; Lactiplantibacillus"         ,              
+  "Bacteria; Lactobacillus"                             , "Bacteria; Lactococcus"                 ,              
+  "Bacteria; Lacunisphaera"                             , "Bacteria; Latilactobacillus"           ,              
+  "Bacteria; Lautropia"                                 , "Bacteria; Lawsonella"                  ,             
+  "Bacteria; Legionella"                                , "Bacteria; Lentimicrobium"              ,              
+  "Bacteria; Leptospira"                                , "Bacteria; Leptotrichia"                ,              
+  "Bacteria; Leucobacter"                               , "Bacteria; Leuconostoc"                 ,              
+  "Bacteria; Ligilactobacillus"                         , "Bacteria; Limnobacter"                 ,              
+  "Bacteria; Limosilactobacillus"                       , "Bacteria; Luteimonas"                  ,              
+  "Bacteria; Lysinibacillus"                            , "Bacteria; Lysobacter"                  ,             
+  "Bacteria; Macellibacteroides"                        , "Bacteria; Macrococcus"                 ,              
+  "Bacteria; Marisediminicola"                          , "Bacteria; Marmoricola"                 ,              
+  "Bacteria; Massilia"                                  , "Bacteria; Megamonas"                   ,              
+  "Bacteria; Meiothermus"                               , "Bacteria; Methylotenera"               ,              
+  "Bacteria; Microbacterium"                            , "Bacteria; Microcella"                  ,              
+  "Bacteria; Micrococcus"                               , "Bacteria; Microlunatus"                ,              
+  "Bacteria; Micropruina"                               , "Bacteria; Modestobacter"               ,              
+  "Bacteria; Mogibacterium"                             , "Bacteria; Moheibacter"                 ,              
+  "Bacteria; Monoglobus"                                , "Bacteria; Moraxella"                   ,              
+  "Bacteria; Mucilaginibacter"                          , "Bacteria; Murdochiella"                ,              
+  "Bacteria; Mycobacterium"                             , "Bacteria; Mycoplasma"                  ,              
+  "Bacteria; Myxococcus"                                , "Bacteria; Nakamurella"                 ,              
+  "Bacteria; Negativicoccus"                            , "Bacteria; Neisseria"                   ,              
+  "Bacteria; Nesterenkonia"                             , "Bacteria; Nevskia"                     ,              
+  "Bacteria; Nitrospira"                                , "Bacteria; Nocardia"                    ,              
+  "Bacteria; Nocardioides"                              , "Bacteria; Nocardiopsis"                ,              
+  "Bacteria; Noviherbaspirillum"                        , "Bacteria; Nubsella"                    ,              
+  "Bacteria; Ohtaekwangia"                              , "Bacteria; OLB13"                       ,              
+  "Bacteria; Oribacterium"                              , "Bacteria; Ornithinibacter"             ,              
+  "Bacteria; Ornithinimicrobium"                        , "Bacteria; Ottowia"                     ,              
+  "Bacteria; P3OB_42"                                   , "Bacteria; Paenibacillus"               ,              
+  "Bacteria; Pajaroellobacter"                          , "Bacteria; Panacagrimonas"              ,              
+  "Bacteria; Pantoea"                                   , "Bacteria; Parabacteroides"             ,              
+  "Bacteria; Parapusillimonas"                          , "Bacteria; Parvimonas"                  ,              
+  "Bacteria; Parviterribacter"                          , "Bacteria; Pediococcus"                 ,              
+  "Bacteria; Pelomonas"                                 , "Bacteria; Peptoanaerobacter"           ,              
+  "Bacteria; Peptoclostridium"                          , "Bacteria; Peptoniphilus"               ,              
+  "Bacteria; Peptostreptococcus"                        , "Bacteria; Perlucidibaca"               ,              
+  "Bacteria; Photobacterium"                            , "Bacteria; Pir4_lineage"                ,              
+  "Bacteria; Pirellula"                                 , "Bacteria; Planococcus"                 ,              
+  "Bacteria; Planomicrobium"                            , "Bacteria; Pontibacter"                 ,              
+  "Bacteria; Porphyromonas"                             , "Bacteria; Prevotella"                  ,              
+  "Bacteria; Prevotella_7"                              , "Bacteria; Prevotella_9"                ,              
+  "Bacteria; Prevotellaceae_NK3B31"                     , "Bacteria; Pseudarthrobacter"           ,              
+  "Bacteria; Pseudogulbenkiania"                        , "Bacteria; Pseudokineococcus"           ,              
+  "Bacteria; Pseudomonas"                               , "Bacteria; Pseudonocardia"              ,              
+  "Bacteria; Pseudopropionibacterium"                   , "Bacteria; Pseudosphingobacterium"      ,              
+  "Bacteria; Pseudoxanthomonas"                         , "Bacteria; Psychrobacter"               ,              
+  "Bacteria; Puia"                                      , "Bacteria; Quadrisphaera"               ,              
+  "Bacteria; Rahnella1"                                 , "Bacteria; Ramlibacter"                 ,              
+  "Bacteria; Rathayibacter"                             , "Bacteria; RB41"                        ,              
+  "Bacteria; Rheinheimera"                              , "Bacteria; Rhizobacter"                 ,              
+  "Bacteria; Rhodococcus"                               , "Bacteria; Rickettsiella"               ,             
+  "Bacteria; Rikenellaceae_RC9_gut"                     , "Bacteria; Roseburia"                   ,              
+  "Bacteria; Roseisolibacter"                           , "Bacteria; Rothia"                      ,              
+  "Bacteria; Rubrobacter"                               , "Bacteria; Rufibacter"                  ,              
+  "Bacteria; Ruminococcus"                              , "Bacteria; Ruminococcus_gauvreauii"     ,              
+  "Bacteria; Rurimicrobium"                             , "Bacteria; Saccharopolyspora"           ,              
+  "Bacteria; Salinibacter"                              , "Bacteria; Salinicoccus"                ,              
+  "Bacteria; Salinicola"                                , "Bacteria; Sanguibacter_Flavimobilis"   ,              
+  "Bacteria; Savagea"                                   , "Bacteria; Segetibacter"                ,              
+  "Bacteria; Selenomonas"                               , "Bacteria; Serratia"                    ,              
+  "Bacteria; SH_PL14"                                   , "Bacteria; Shuttleworthia"              ,              
+  "Bacteria; Simonsiella"                               , "Bacteria; Singulisphaera"              ,              
+  "Bacteria; Slackia"                                   , "Bacteria; Solibacillus"                ,              
+  "Bacteria; Solirubrobacter"                           , "Bacteria; Sorangium"                   ,              
+  "Bacteria; Sphaerochaeta"                             , "Bacteria; Sphingobacterium"            ,              
+  "Bacteria; Spirosoma"                                 , "Bacteria; Sporosarcina"                ,              
+  "Bacteria; Staphylococcus"                            , "Bacteria; Stenotrophobacter"           ,              
+  "Bacteria; Stenotrophomonas"                          , "Bacteria; Stomatobaculum"              ,              
+  "Bacteria; Streptococcus"                             , "Bacteria; Streptomyces"                ,              
+  "Bacteria; Subdoligranulum"                           , "Bacteria; Sulfuritalea"                ,              
+  "Bacteria; Sutterella"                                , "Bacteria; Tannerella"                  ,              
+  "Bacteria; Tepidimonas"                               , "Bacteria; Terrimicrobium"              ,              
+  "Bacteria; Terrisporobacter"                          , "Bacteria; Tessaracoccus"               ,              
+  "Bacteria; Tetragenococcus"                           , "Bacteria; Tetrasphaera"                ,              
+  "Bacteria; Thermomonas"                               , "Bacteria; Thermus"                     ,              
+  "Bacteria; Timonella"                                 , "Bacteria; Tissierella"                 ,              
+  "Bacteria; TM7a"                                      , "Bacteria; TM7x"                        ,              
+  "Bacteria; Treponema"                                 , "Bacteria; Trichococcus"                ,              
+  "Bacteria; Truepera"                                  , "Bacteria; Tumebacillus"                ,              
+  "Bacteria; Turicella"                                 , "Bacteria; Turicibacter"                ,              
+  "Bacteria; Turneriella"                               , "Bacteria; Unc. OTU0004"                ,              
+  "Bacteria; Unc. OTU0030"                              , "Bacteria; Unc. OTU0031"                ,              
+  "Bacteria; Unc. OTU0032"                              , "Bacteria; Unc. OTU0034"                ,              
+  "Bacteria; Unc. OTU0042"                              , "Bacteria; Unc. OTU0045"                ,              
+  "Bacteria; Unc. OTU0047"                              , "Bacteria; Unc. OTU0097"                ,              
+  "Bacteria; Unc. OTU0098"                              , "Bacteria; Unc. OTU0099"                ,              
+  "Bacteria; Unc. OTU0103"                              , "Bacteria; Unc. OTU0104"                ,              
+  "Bacteria; Unc. OTU0106"                              , "Bacteria; Unc. OTU0107"                ,              
+  "Bacteria; Unc. OTU0111"                              , "Bacteria; Unc. OTU0115"                ,              
+  "Bacteria; Unc. OTU0118"                              , "Bacteria; Unc. OTU0119"                ,              
+  "Bacteria; Unc. OTU0121"                              , "Bacteria; Unc. OTU0122"                ,              
+  "Bacteria; Unc. OTU0134"                              , "Bacteria; Unc. OTU0152"                ,              
+  "Bacteria; Unc. OTU0173"                              , "Bacteria; Unc. OTU0264"                ,              
+  "Bacteria; Unc. OTU0327"                              , "Bacteria; Unc. OTU0344"                ,              
+  "Bacteria; Unc. OTU0367"                              , "Bacteria; Unc. OTU0375"                ,              
+  "Bacteria; Unc. OTU0378"                              , "Bacteria; Unc. OTU0399"                ,              
+  "Bacteria; Unc. OTU0446"                              , "Bacteria; Unc. OTU0459"                ,              
+  "Bacteria; Unc. OTU0463"                              , "Bacteria; Unc. OTU0489"                ,              
+  "Bacteria; Unc. OTU0491"                              , "Bacteria; Unc. OTU0514"                ,              
+  "Bacteria; Unc. OTU0536"                              , "Bacteria; Unc. OTU0568"                ,              
+  "Bacteria; Unc. OTU0569"                              , "Bacteria; Unc. OTU0596"                ,              
+  "Bacteria; Unc. OTU0597"                              , "Bacteria; Unc. OTU0598"                ,              
+  "Bacteria; Unc. OTU0616"                              , "Bacteria; Unc. OTU0651"                ,              
+  "Bacteria; Unc. OTU0742"                              , "Bacteria; Unc. OTU0744"                ,              
+  "Bacteria; Unc. OTU0856"                              , "Bacteria; Unc. OTU0870"                ,              
+  "Bacteria; Unc. OTU0886"                              , "Bacteria; Unc. OTU0918"                ,              
+  "Bacteria; Unc. OTU0964"                              , "Bacteria; Unc. OTU0965"                ,              
+  "Bacteria; Unc. OTU0982"                              , "Bacteria; Unc. OTU1049"                ,              
+  "Bacteria; Unc. OTU1059"                              , "Bacteria; Unc. OTU1080"                ,              
+  "Bacteria; Unc. OTU1088"                              , "Bacteria; Unc. OTU1090"                ,              
+  "Bacteria; Unc. OTU1104"                              , "Bacteria; Unc. OTU1110"                ,              
+  "Bacteria; Unc. OTU1122"                              , "Bacteria; Unc. OTU1127"                ,              
+  "Bacteria; Unc. OTU1128"                              , "Bacteria; Unc. OTU1129"                ,              
+  "Bacteria; Unc. OTU1132"                              , "Bacteria; Unc. OTU1134"                ,              
+  "Bacteria; Unc. OTU1151"                              , "Bacteria; Unc. OTU1166"                ,              
+  "Bacteria; Unc. OTU1183"                              , "Bacteria; Unc. OTU1185"                ,              
+  "Bacteria; Unc. OTU1186"                              , "Bacteria; Unc. OTU1198"                ,              
+  "Bacteria; Unc. OTU1199"                              , "Bacteria; Unc. OTU1223"                ,              
+  "Bacteria; Unc. OTU1224"                              , "Bacteria; Unc. OTU1229"                ,              
+  "Bacteria; Unc. OTU1293"                              , "Bacteria; Unc. OTU1398"                ,              
+  "Bacteria; Unc. OTU1407"                              , "Bacteria; Unc. OTU1468"                ,              
+  "Bacteria; Unc. OTU1478"                              , "Bacteria; Unc. OTU1482"                ,              
+  "Bacteria; Unc. OTU1563"                              , "Bacteria; Unc. OTU1587"                ,              
+  "Bacteria; Unc. OTU1599"                              , "Bacteria; Unc. OTU1623"                ,              
+  "Bacteria; Unc. OTU1624"                              , "Bacteria; Unc. OTU1632"                ,              
+  "Bacteria; Unc. OTU1637"                              , "Bacteria; Unc. OTU1638"                ,              
+  "Bacteria; Unc. OTU1639"                              , "Bacteria; Unc. OTU1648"                ,              
+  "Bacteria; Unc. OTU1705"                              , "Bacteria; Unc. OTU1738"                ,              
+  "Bacteria; Unc. OTU1754"                              , "Bacteria; Unc. OTU1762"                ,              
+  "Bacteria; Unc. OTU1796"                              , "Bacteria; Unc. OTU1797"                ,              
+  "Bacteria; Unc. OTU1818"                              , "Bacteria; Unc. OTU1822"                ,              
+  "Bacteria; Ureaplasma"                                , "Bacteria; Varibaculum"                 ,              
+  "Bacteria; Variovorax"                                , "Bacteria; Veillonella"                 ,              
+  "Bacteria; Verrucomicrobium"                          , "Bacteria; Vibrio"                      ,              
+  "Bacteria; Williamsia"                                , "Bacteria; Wolinella"                   ,              
+  "Bacteria; Yaniella"                                  , "Bacteria; Yersinia"                    ,              
+  "Bacteria; Yonghaparkia" 
+),
+function(var) {
+  var <- paste0("`", var, "`")
+  formula <- as.formula(paste(var, "~ Exposure + (1 | ID)"))
+  res.mixed <- lmer(formula, data = Genus_analysis)
+  
+  model_summary <- coef(summary(res.mixed))
+  estimates <- model_summary[, "Estimate"]
+  std_errors <- model_summary[, "Std. Error"]
+  p_values <- model_summary[, "Pr(>|t|)"]
+  
+  p_adjusted_BH <- p.adjust(p_values, method = "BH")
+  p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+  
+  data.frame(
+    Genus = var,
+    Estimate = estimates,
+    SE = std_errors,
+    Unadjusted_pvalue = p_values,
+    BH_pvalue = p_adjusted_BH,
+    Bonferroni_pvalue = p_adjusted_Bonf
+  )
+  
+})
+
+results_combined <- do.call(rbind, results_genus_LMM)
+
+
+write.csv(results_combined, file = "Genus_LMM.csv")
+
+####****  This was resulting in errors because of a couple families
+####*so we use trycatch and return null values on problematic families
+
+results_genus_LMM <- lapply(c(
+  "Bacteria; Abditibacterium"                           ,
+  "Bacteria; Abiotrophia"                               , "Bacteria; Acidibacter"                 ,    
+  "Bacteria; Acidothermus"                              , "Bacteria; Acidovorax"                  ,   
+  "Bacteria; Acinetobacter"                             , "Bacteria; Actinomadura"                ,  
+  "Bacteria; Actinomyces"                               , "Bacteria; Actinomycetospora"           , 
+  "Bacteria; Aerococcus"                                , "Bacteria; Aeromicrobium"               ,   
+  "Bacteria; Aeromonas"                                 , "Bacteria; Agathobacter"                ,      
+  "Bacteria; Aggregatibacter"                           , "Bacteria; Agitococcus_lubricus"        ,     
+  "Bacteria; Agrococcus"                                , "Bacteria; Agromyces"                   ,      
+  "Bacteria; Akkermansia"                               , "Bacteria; Alcaligenes"                 ,      
+  "Bacteria; Alcanivorax"                               , "Bacteria; Aliicoccus"                  ,      
+  "Bacteria; Aliidiomarina"                             , "Bacteria; Alkalibacterium"             ,      
+  "Bacteria; Alkanindiges"                              , "Bacteria; Allobaculum"                 ,      
+  "Bacteria; Alloiococcus"                              , "Bacteria; Alloprevotella"              ,      
+  "Bacteria; Amnibacterium"                             , "Bacteria; Anaerococcus"                ,     
+  "Bacteria; Aquabacterium"                             , "Bacteria; Arenimonas"                  ,      
+  "Bacteria; Aridibacter"                               , "Bacteria; Arthrobacter"                ,      
+  "Bacteria; Atopobium"                                 , "Bacteria; Atopostipes"                 ,     
+  "Bacteria; Auricoccus_Abyssicoccus"                   , "Bacteria; Azoarcus"                    ,     
+  "Bacteria; Bacillus"                                  , "Bacteria; Bacteroides"                 ,      
+  "Bacteria; Bergeyella"                                , "Bacteria; Bifidobacterium"             ,      
+  "Bacteria; Blastocatella"                             , "Bacteria; Blastococcus"                ,      
+  "Bacteria; Blautia"                                   , "Bacteria; Brachybacterium"             ,     
+  "Bacteria; Brevibacillus"                             , "Bacteria; Brevibacterium"              ,     
+  "Bacteria; Brochothrix"                               , "Bacteria; Buchnera"                    ,      
+  "Bacteria; Burkholderia_Caballeronia_Paraburkholderia", "Bacteria; Butyricicoccus"              ,      
+  "Bacteria; Butyrivibrio"                              , "Bacteria; Campylobacter"               ,      
+  "Bacteria; Candidatus_Cardinium"                      , "Bacteria; Candidatus_Saccharimonas"    ,              
+  "Bacteria; Capnocytophaga"                            , "Bacteria; Cardiobacterium"             ,              
+  "Bacteria; Carnobacterium"                            , "Bacteria; Catenibacterium"             ,              
+  "Bacteria; Catonella"                                 , "Bacteria; Cellulomonas"                ,              
+  "Bacteria; Cellulosilyticum"                          , "Bacteria; Cellvibrio"                  ,              
+  "Bacteria; Chiayiivirga"                              , "Bacteria; Chitinophaga"                ,              
+  "Bacteria; Chromohalobacter"                          , "Bacteria; Chryseobacterium"            ,              
+  "Bacteria; Chryseomicrobium"                          , "Bacteria; Chthoniobacter"              ,              
+  "Bacteria; Citricoccus"                               , "Bacteria; Citrobacter"                 ,              
+  "Bacteria; CL500_29_marine"                           , "Bacteria; Cloacibacterium"             ,              
+  "Bacteria; Clostridium_sensu_stricto_1"               , "Bacteria; Clostridium_sensu_stricto_18",              
+  "Bacteria; Clostridium_sensu_stricto_7"               , "Bacteria; Cnuella"                     ,              
+  "Bacteria; Cohnella"                                  , "Bacteria; Collinsella"                 ,              
+  "Bacteria; Comamonas"                                 , "Bacteria; Conexibacter"                ,              
+  "Bacteria; Coprococcus"                               , "Bacteria; Corynebacterium"             ,              
+  "Bacteria; Cupriavidus"                               , "Bacteria; Curtobacterium"              ,              
+  "Bacteria; Curvibacter"                               , "Bacteria; Cutibacterium"               ,              
+  "Bacteria; Defluviitaleaceae_UCG_011"                 , "Bacteria; Deinococcus"                 ,              
+  "Bacteria; Delftia"                                   , "Bacteria; Denitratisoma"               ,              
+  "Bacteria; Dermabacter"                               , "Bacteria; Dermacoccus"                 ,              
+  "Bacteria; Desemzia"                                  , "Bacteria; Dialister"                   ,              
+  "Bacteria; Diaphorobacter"                            , "Bacteria; Dietzia"                     ,              
+  "Bacteria; Dokdonella"                                , "Bacteria; Dolosigranulum"              ,              
+  "Bacteria; Domibacillus"                              , "Bacteria; Dubosiella"                  ,              
+  "Bacteria; Dyadobacter"                               , "Bacteria; Eggerthella"                 ,              
+  "Bacteria; Eisenbergiella"                            , "Bacteria; Ellin517"                    ,              
+  "Bacteria; Ellin6067"                                 , "Bacteria; Empedobacter"                ,              
+  "Bacteria; Enhydrobacter"                             , "Bacteria; Enterococcus"                ,              
+  "Bacteria; Erysipelatoclostridium"                    , "Bacteria; Erysipelothrix"              ,              
+  "Bacteria; Erysipelotrichaceae_UCG_006"               , "Bacteria; Erysipelotrichaceae_UCG_007" ,              
+  "Bacteria; Escherichia_Shigella"                      , "Bacteria; Eubacterium"                 ,              
+  "Bacteria; Eubacterium_brachy"                        , "Bacteria; Eubacterium_nodatum"         ,             
+  "Bacteria; Eubacterium_siraeum"                       , "Bacteria; Eubacterium_yurii"           ,              
+  "Bacteria; Exiguobacterium"                           , "Bacteria; Ezakiella"                   ,              
+  "Bacteria; F0058"                                     , "Bacteria; F0332"                       ,              
+  "Bacteria; Facklamia"                                 , "Bacteria; Faecalibacterium"            ,              
+  "Bacteria; Faecalibaculum"                            , "Bacteria; Fastidiosipila"              ,              
+  "Bacteria; Fenollaria"                                , "Bacteria; Ferruginibacter"             ,              
+  "Bacteria; Filifactor"                                , "Bacteria; Finegoldia"                  ,              
+  "Bacteria; Flaviaesturariibacter"                     , "Bacteria; Flavisolibacter"             ,              
+  "Bacteria; Flavitalea"                                , "Bacteria; Flavobacterium"              ,              
+  "Bacteria; Fretibacterium"                            , "Bacteria; Friedmanniella"              ,              
+  "Bacteria; Fusicatenibacter"                          , "Bacteria; Fusobacterium"               ,              
+  "Bacteria; Gaiella"                                   , "Bacteria; Gallicola"                   ,              
+  "Bacteria; Gardnerella"                               , "Bacteria; Gemella"                     ,              
+  "Bacteria; Gemmatimonas"                              , "Bacteria; Geobacillus"                 ,              
+  "Bacteria; Geodermatophilus"                          , "Bacteria; Georgenia"                   ,              
+  "Bacteria; Gordonia"                                  , "Bacteria; Granulicatella"              ,              
+  "Bacteria; Haemophilus"                               , "Bacteria; Haliangium"                  ,              
+  "Bacteria; Halomonas"                                 , "Bacteria; Hassallia"                   ,              
+  "Bacteria; Helcococcus"                               , "Bacteria; Holdemanella"                ,              
+  "Bacteria; Hydrocarboniphaga"                         , "Bacteria; Hydrogenophilus"             ,              
+  "Bacteria; Hydrotalea"                                , "Bacteria; Hymenobacter"                ,              
+  "Bacteria; Iamia"                                     , "Bacteria; Ideonella"                   ,              
+  "Bacteria; Ileibacterium"                             , "Bacteria; Ilumatobacter"               ,              
+  "Bacteria; Janibacter"                                , "Bacteria; Jatrophihabitans"            ,              
+  "Bacteria; Jeotgalicoccus"                            , "Bacteria; JGI_0001001_H03"             ,              
+  "Bacteria; Johnsonella"                               , "Bacteria; KCM_B_112"                   ,              
+  "Bacteria; Ketobacter"                                , "Bacteria; Kineosporia"                 ,              
+  "Bacteria; Kingella"                                  , "Bacteria; Klebsiella"                  ,              
+  "Bacteria; Klenkia"                                   , "Bacteria; Knoellia"                    ,              
+  "Bacteria; Kocuria"                                   , "Bacteria; Krasilnikovia"               ,              
+  "Bacteria; Kurthia"                                   , "Bacteria; Kytococcus"                  ,              
+  "Bacteria; Laceyella"                                 , "Bacteria; Lachnoanaerobaculum"         ,              
+  "Bacteria; Lachnoclostridium"                         , "Bacteria; Lachnospiraceae_ND3007"      ,              
+  "Bacteria; Lachnospiraceae_NK4A136"                   , "Bacteria; Lachnospiraceae_UCG_004"     ,              
+  "Bacteria; Lacibacter"                                , "Bacteria; Lactiplantibacillus"         ,              
+  "Bacteria; Lactobacillus"                             , "Bacteria; Lactococcus"                 ,              
+  "Bacteria; Lacunisphaera"                             , "Bacteria; Latilactobacillus"           ,              
+  "Bacteria; Lautropia"                                 , "Bacteria; Lawsonella"                  ,             
+  "Bacteria; Legionella"                                , "Bacteria; Lentimicrobium"              ,              
+  "Bacteria; Leptospira"                                , "Bacteria; Leptotrichia"                ,              
+  "Bacteria; Leucobacter"                               , "Bacteria; Leuconostoc"                 ,              
+  "Bacteria; Ligilactobacillus"                         , "Bacteria; Limnobacter"                 ,              
+  "Bacteria; Limosilactobacillus"                       , "Bacteria; Luteimonas"                  ,              
+  "Bacteria; Lysinibacillus"                            , "Bacteria; Lysobacter"                  ,             
+  "Bacteria; Macellibacteroides"                        , "Bacteria; Macrococcus"                 ,              
+  "Bacteria; Marisediminicola"                          , "Bacteria; Marmoricola"                 ,              
+  "Bacteria; Massilia"                                  , "Bacteria; Megamonas"                   ,              
+  "Bacteria; Meiothermus"                               , "Bacteria; Methylotenera"               ,              
+  "Bacteria; Microbacterium"                            , "Bacteria; Microcella"                  ,              
+  "Bacteria; Micrococcus"                               , "Bacteria; Microlunatus"                ,              
+  "Bacteria; Micropruina"                               , "Bacteria; Modestobacter"               ,              
+  "Bacteria; Mogibacterium"                             , "Bacteria; Moheibacter"                 ,              
+  "Bacteria; Monoglobus"                                , "Bacteria; Moraxella"                   ,              
+  "Bacteria; Mucilaginibacter"                          , "Bacteria; Murdochiella"                ,              
+  "Bacteria; Mycobacterium"                             , "Bacteria; Mycoplasma"                  ,              
+  "Bacteria; Myxococcus"                                , "Bacteria; Nakamurella"                 ,              
+  "Bacteria; Negativicoccus"                            , "Bacteria; Neisseria"                   ,              
+  "Bacteria; Nesterenkonia"                             , "Bacteria; Nevskia"                     ,              
+  "Bacteria; Nitrospira"                                , "Bacteria; Nocardia"                    ,              
+  "Bacteria; Nocardioides"                              , "Bacteria; Nocardiopsis"                ,              
+  "Bacteria; Noviherbaspirillum"                        , "Bacteria; Nubsella"                    ,              
+  "Bacteria; Ohtaekwangia"                              , "Bacteria; OLB13"                       ,              
+  "Bacteria; Oribacterium"                              , "Bacteria; Ornithinibacter"             ,              
+  "Bacteria; Ornithinimicrobium"                        , "Bacteria; Ottowia"                     ,              
+  "Bacteria; P3OB_42"                                   , "Bacteria; Paenibacillus"               ,              
+  "Bacteria; Pajaroellobacter"                          , "Bacteria; Panacagrimonas"              ,              
+  "Bacteria; Pantoea"                                   , "Bacteria; Parabacteroides"             ,              
+  "Bacteria; Parapusillimonas"                          , "Bacteria; Parvimonas"                  ,              
+  "Bacteria; Parviterribacter"                          , "Bacteria; Pediococcus"                 ,              
+  "Bacteria; Pelomonas"                                 , "Bacteria; Peptoanaerobacter"           ,              
+  "Bacteria; Peptoclostridium"                          , "Bacteria; Peptoniphilus"               ,              
+  "Bacteria; Peptostreptococcus"                        , "Bacteria; Perlucidibaca"               ,              
+  "Bacteria; Photobacterium"                            , "Bacteria; Pir4_lineage"                ,              
+  "Bacteria; Pirellula"                                 , "Bacteria; Planococcus"                 ,              
+  "Bacteria; Planomicrobium"                            , "Bacteria; Pontibacter"                 ,              
+  "Bacteria; Porphyromonas"                             , "Bacteria; Prevotella"                  ,              
+  "Bacteria; Prevotella_7"                              , "Bacteria; Prevotella_9"                ,              
+  "Bacteria; Prevotellaceae_NK3B31"                     , "Bacteria; Pseudarthrobacter"           ,              
+  "Bacteria; Pseudogulbenkiania"                        , "Bacteria; Pseudokineococcus"           ,              
+  "Bacteria; Pseudomonas"                               , "Bacteria; Pseudonocardia"              ,              
+  "Bacteria; Pseudopropionibacterium"                   , "Bacteria; Pseudosphingobacterium"      ,              
+  "Bacteria; Pseudoxanthomonas"                         , "Bacteria; Psychrobacter"               ,              
+  "Bacteria; Puia"                                      , "Bacteria; Quadrisphaera"               ,              
+  "Bacteria; Rahnella1"                                 , "Bacteria; Ramlibacter"                 ,              
+  "Bacteria; Rathayibacter"                             , "Bacteria; RB41"                        ,              
+  "Bacteria; Rheinheimera"                              , "Bacteria; Rhizobacter"                 ,              
+  "Bacteria; Rhodococcus"                               , "Bacteria; Rickettsiella"               ,             
+  "Bacteria; Rikenellaceae_RC9_gut"                     , "Bacteria; Roseburia"                   ,              
+  "Bacteria; Roseisolibacter"                           , "Bacteria; Rothia"                      ,              
+  "Bacteria; Rubrobacter"                               , "Bacteria; Rufibacter"                  ,              
+  "Bacteria; Ruminococcus"                              , "Bacteria; Ruminococcus_gauvreauii"     ,              
+  "Bacteria; Rurimicrobium"                             , "Bacteria; Saccharopolyspora"           ,              
+  "Bacteria; Salinibacter"                              , "Bacteria; Salinicoccus"                ,              
+  "Bacteria; Salinicola"                                , "Bacteria; Sanguibacter_Flavimobilis"   ,              
+  "Bacteria; Savagea"                                   , "Bacteria; Segetibacter"                ,              
+  "Bacteria; Selenomonas"                               , "Bacteria; Serratia"                    ,              
+  "Bacteria; SH_PL14"                                   , "Bacteria; Shuttleworthia"              ,              
+  "Bacteria; Simonsiella"                               , "Bacteria; Singulisphaera"              ,              
+  "Bacteria; Slackia"                                   , "Bacteria; Solibacillus"                ,              
+  "Bacteria; Solirubrobacter"                           , "Bacteria; Sorangium"                   ,              
+  "Bacteria; Sphaerochaeta"                             , "Bacteria; Sphingobacterium"            ,              
+  "Bacteria; Spirosoma"                                 , "Bacteria; Sporosarcina"                ,              
+  "Bacteria; Staphylococcus"                            , "Bacteria; Stenotrophobacter"           ,              
+  "Bacteria; Stenotrophomonas"                          , "Bacteria; Stomatobaculum"              ,              
+  "Bacteria; Streptococcus"                             , "Bacteria; Streptomyces"                ,              
+  "Bacteria; Subdoligranulum"                           , "Bacteria; Sulfuritalea"                ,              
+  "Bacteria; Sutterella"                                , "Bacteria; Tannerella"                  ,              
+  "Bacteria; Tepidimonas"                               , "Bacteria; Terrimicrobium"              ,              
+  "Bacteria; Terrisporobacter"                          , "Bacteria; Tessaracoccus"               ,              
+  "Bacteria; Tetragenococcus"                           , "Bacteria; Tetrasphaera"                ,              
+  "Bacteria; Thermomonas"                               , "Bacteria; Thermus"                     ,              
+  "Bacteria; Timonella"                                 , "Bacteria; Tissierella"                 ,              
+  "Bacteria; TM7a"                                      , "Bacteria; TM7x"                        ,              
+  "Bacteria; Treponema"                                 , "Bacteria; Trichococcus"                ,              
+  "Bacteria; Truepera"                                  , "Bacteria; Tumebacillus"                ,              
+  "Bacteria; Turicella"                                 , "Bacteria; Turicibacter"                ,              
+  "Bacteria; Turneriella"                               , "Bacteria; Unc. OTU0004"                ,              
+  "Bacteria; Unc. OTU0030"                              , "Bacteria; Unc. OTU0031"                ,              
+  "Bacteria; Unc. OTU0032"                              , "Bacteria; Unc. OTU0034"                ,              
+  "Bacteria; Unc. OTU0042"                              , "Bacteria; Unc. OTU0045"                ,              
+  "Bacteria; Unc. OTU0047"                              , "Bacteria; Unc. OTU0097"                ,              
+  "Bacteria; Unc. OTU0098"                              , "Bacteria; Unc. OTU0099"                ,              
+  "Bacteria; Unc. OTU0103"                              , "Bacteria; Unc. OTU0104"                ,              
+  "Bacteria; Unc. OTU0106"                              , "Bacteria; Unc. OTU0107"                ,              
+  "Bacteria; Unc. OTU0111"                              , "Bacteria; Unc. OTU0115"                ,              
+  "Bacteria; Unc. OTU0118"                              , "Bacteria; Unc. OTU0119"                ,              
+  "Bacteria; Unc. OTU0121"                              , "Bacteria; Unc. OTU0122"                ,              
+  "Bacteria; Unc. OTU0134"                              , "Bacteria; Unc. OTU0152"                ,              
+  "Bacteria; Unc. OTU0173"                              , "Bacteria; Unc. OTU0264"                ,              
+  "Bacteria; Unc. OTU0327"                              , "Bacteria; Unc. OTU0344"                ,              
+  "Bacteria; Unc. OTU0367"                              , "Bacteria; Unc. OTU0375"                ,              
+  "Bacteria; Unc. OTU0378"                              , "Bacteria; Unc. OTU0399"                ,              
+  "Bacteria; Unc. OTU0446"                              , "Bacteria; Unc. OTU0459"                ,              
+  "Bacteria; Unc. OTU0463"                              , "Bacteria; Unc. OTU0489"                ,              
+  "Bacteria; Unc. OTU0491"                              , "Bacteria; Unc. OTU0514"                ,              
+  "Bacteria; Unc. OTU0536"                              , "Bacteria; Unc. OTU0568"                ,              
+  "Bacteria; Unc. OTU0569"                              , "Bacteria; Unc. OTU0596"                ,              
+  "Bacteria; Unc. OTU0597"                              , "Bacteria; Unc. OTU0598"                ,              
+  "Bacteria; Unc. OTU0616"                              , "Bacteria; Unc. OTU0651"                ,              
+  "Bacteria; Unc. OTU0742"                              , "Bacteria; Unc. OTU0744"                ,              
+  "Bacteria; Unc. OTU0856"                              , "Bacteria; Unc. OTU0870"                ,              
+  "Bacteria; Unc. OTU0886"                              , "Bacteria; Unc. OTU0918"                ,              
+  "Bacteria; Unc. OTU0964"                              , "Bacteria; Unc. OTU0965"                ,              
+  "Bacteria; Unc. OTU0982"                              , "Bacteria; Unc. OTU1049"                ,              
+  "Bacteria; Unc. OTU1059"                              , "Bacteria; Unc. OTU1080"                ,              
+  "Bacteria; Unc. OTU1088"                              , "Bacteria; Unc. OTU1090"                ,              
+  "Bacteria; Unc. OTU1104"                              , "Bacteria; Unc. OTU1110"                ,              
+  "Bacteria; Unc. OTU1122"                              , "Bacteria; Unc. OTU1127"                ,              
+  "Bacteria; Unc. OTU1128"                              , "Bacteria; Unc. OTU1129"                ,              
+  "Bacteria; Unc. OTU1132"                              , "Bacteria; Unc. OTU1134"                ,              
+  "Bacteria; Unc. OTU1151"                              , "Bacteria; Unc. OTU1166"                ,              
+  "Bacteria; Unc. OTU1183"                              , "Bacteria; Unc. OTU1185"                ,              
+  "Bacteria; Unc. OTU1186"                              , "Bacteria; Unc. OTU1198"                ,              
+  "Bacteria; Unc. OTU1199"                              , "Bacteria; Unc. OTU1223"                ,              
+  "Bacteria; Unc. OTU1224"                              , "Bacteria; Unc. OTU1229"                ,              
+  "Bacteria; Unc. OTU1293"                              , "Bacteria; Unc. OTU1398"                ,              
+  "Bacteria; Unc. OTU1407"                              , "Bacteria; Unc. OTU1468"                ,              
+  "Bacteria; Unc. OTU1478"                              , "Bacteria; Unc. OTU1482"                ,              
+  "Bacteria; Unc. OTU1563"                              , "Bacteria; Unc. OTU1587"                ,              
+  "Bacteria; Unc. OTU1599"                              , "Bacteria; Unc. OTU1623"                ,              
+  "Bacteria; Unc. OTU1624"                              , "Bacteria; Unc. OTU1632"                ,              
+  "Bacteria; Unc. OTU1637"                              , "Bacteria; Unc. OTU1638"                ,              
+  "Bacteria; Unc. OTU1639"                              , "Bacteria; Unc. OTU1648"                ,              
+  "Bacteria; Unc. OTU1705"                              , "Bacteria; Unc. OTU1738"                ,              
+  "Bacteria; Unc. OTU1754"                              , "Bacteria; Unc. OTU1762"                ,              
+  "Bacteria; Unc. OTU1796"                              , "Bacteria; Unc. OTU1797"                ,              
+  "Bacteria; Unc. OTU1818"                              , "Bacteria; Unc. OTU1822"                ,              
+  "Bacteria; Ureaplasma"                                , "Bacteria; Varibaculum"                 ,              
+  "Bacteria; Variovorax"                                , "Bacteria; Veillonella"                 ,              
+  "Bacteria; Verrucomicrobium"                          , "Bacteria; Vibrio"                      ,              
+  "Bacteria; Williamsia"                                , "Bacteria; Wolinella"                   ,              
+  "Bacteria; Yaniella"                                  , "Bacteria; Yersinia"                    ,              
+  "Bacteria; Yonghaparkia" 
+), function(var) {
+  tryCatch({
+    # Wrap your modeling code in tryCatch
+    var <- paste0("`", var, "`")
+    formula <- as.formula(paste(var, "~ Exposure + (1 | ID)"))
+    res.mixed <- lmer(formula, data = Genus_analysis)
+    
+    model_summary <- coef(summary(res.mixed))
+    estimates <- model_summary[, "Estimate"]
+    std_errors <- model_summary[, "Std. Error"]
+    p_values <- model_summary[, "Pr(>|t|)"]
+    
+    p_adjusted_BH <- p.adjust(p_values, method = "BH")
+    p_adjusted_Bonf <- p.adjust(p_values, method = "bonferroni")
+    
+    # Return results as a data frame
+    data.frame(
+      Genus = var,
+      Estimate = estimates,
+      SE = std_errors,
+      Unadjusted_pvalue = p_values,
+      BH_pvalue = p_adjusted_BH,
+      Bonferroni_pvalue = p_adjusted_Bonf
+    )
+  }, error = function(e) {
+    # If an error occurs, log the problematic variable and return NULL
+    cat("Error with variable:", var, "\n")
+    NULL
+  })
+})
+
+# Combine results, skipping any NULLs
+results_combined <- do.call(rbind, results_genus_LMM)
+
+# Save the results to a CSV file
+write.csv(results_combined, file = "Genus_LMM.csv")
+
+
+
+ #unadjusted results 
+
+unadj_lmm_Enhy <- lmer(`Bacteria; Enhydrobacter` ~ Exposure + (1 | ID), data = Genus_analysis)
+summary(unadj_lmm_Enhy)
+confint(unadj_lmm_Enhy)
+
+
+unadj_lmm_hyme <- lmer(`Bacteria; Hymenobacter` ~ Exposure + (1 | ID), data = Genus_analysis)
+summary(unadj_lmm_hyme)
+confint(unadj_lmm_hyme)
+
+
+unadj_lmm_Unc <- lmer(`Bacteria; Unc. OTU0098` ~ Exposure + (1 | ID), data = Genus_analysis)
+summary(unadj_lmm_Unc)
+confint(unadj_lmm_Unc)
+
+
+# Adjusted results
+
+adj_lmm_Enhy <- lmer(`Bacteria; Enhydrobacter` ~ Exposure + AGE + Serve_years + (1 | ID), data = Genus_analysis)
+summary(adj_lmm_Enhy)
+confint(adj_lmm_Enhy)
+
+
+adj_lmm_hyme <- lmer(`Bacteria; Hymenobacter` ~ Exposure + AGE + Serve_years + (1 | ID), data = Genus_analysis)
+summary(adj_lmm_hyme)
+confint(adj_lmm_hyme)
+
+
+adj_lmm_Unc <- lmer(`Bacteria; Unc. OTU0098` ~ Exposure + AGE + Serve_years + (1 | ID), data = Genus_analysis)
+summary(adj_lmm_Unc)
+confint(adj_lmm_Unc)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
