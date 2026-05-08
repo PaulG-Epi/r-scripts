@@ -1,5 +1,5 @@
 # r-scripts
-Shared R scripts and workflows for reproducible analysis in exposure-associated multi-omics (EAMO).
+
 
 ### [Emergency Fire Smoke Exposure and Epigenome-Wide DNA Methylation Changes in Firefighters]
 
